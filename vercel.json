@@ -1,0 +1,19 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/public",
+  "installCommand": "npm install",
+  "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/anime/winbu/server", "destination": "/api/anime/winbu/server" },
+    { "source": "/api/anime/server/:id", "destination": "/api/anime/server/[id]" },
+    { "source": "/api/anime/episode/:slug", "destination": "/api/anime/episode/[slug]" },
+    { "source": "/api/anime/schedule", "destination": "/api/anime/schedule" },
+    { "source": "/api/anime/home", "destination": "/api/anime/home" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
