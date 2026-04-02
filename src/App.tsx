@@ -4,6 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import Home from "@/pages/Home";
 import Schedule from "@/pages/Schedule";
 import Watch from "@/pages/Watch";
+import Admin from "@/pages/Admin";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -17,15 +18,20 @@ const queryClient = new QueryClient({
 
 function Router() {
   return (
-    <>
-      <Navbar />
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/jadwal" component={Schedule} />
-        <Route path="/tonton/:slug" component={Watch} />
-        <Route component={NotFound} />
-      </Switch>
-    </>
+    <Switch>
+      <Route path="/admin" component={Admin} />
+      <Route>
+        <>
+          <Navbar />
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/jadwal" component={Schedule} />
+            <Route path="/tonton/:slug" component={Watch} />
+            <Route component={NotFound} />
+          </Switch>
+        </>
+      </Route>
+    </Switch>
   );
 }
 
