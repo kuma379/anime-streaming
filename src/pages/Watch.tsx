@@ -12,6 +12,13 @@ interface ActiveStream {
   key: string;
 }
 
+function getProxiedUrl(url: string): string {
+  if (!url) return "";
+  const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(url);
+  if (isDirect) return url;
+  return `/api/anime/proxy?url=${encodeURIComponent(url)}`;
+}
+
 function VideoPlayer({ streamUrl }: { streamUrl: string }) {
   if (!streamUrl) {
     return (
@@ -43,11 +50,13 @@ function VideoPlayer({ streamUrl }: { streamUrl: string }) {
     );
   }
 
+  const iframeSrc = getProxiedUrl(streamUrl);
+
   return (
     <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
       <iframe
-        key={streamUrl}
-        src={streamUrl}
+        key={iframeSrc}
+        src={iframeSrc}
         className="w-full aspect-video"
         allowFullScreen
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
