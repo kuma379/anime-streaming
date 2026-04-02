@@ -1,7 +1,18 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import * as cheerio from "cheerio";
+import axios from "axios";
 
-const SOURCE = "https://www.sankavollerei.com/anime/schedule";
+const api = axios.create({
+  baseURL: "https://www.sankavollerei.com",
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    Accept: "application/json, text/html, */*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
+    Referer: "https://www.sankavollerei.com",
+  },
+  timeout: 20000,
+  decompress: true,
+});
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -9,41 +20,24 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   if (_req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const response = await fetch(SOURCE, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
-
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    const schedule: object[] = [];
-
-    $(".jadwal-day, .schedule-day, [class*='day']").each((_, dayEl) => {
-      const $day = $(dayEl);
-      const day = $day.find(".day-name, h3, h2").first().text().trim();
-      if (!day) return;
-
-      const animes: object[] = [];
-      $day.find("article, li, .anime-item").each((_, animeEl) => {
-        const $a = $(animeEl);
-        const title = $a.find(".title, h3, h4, a").first().text().trim();
-        const link = $a.find("a").first().attr("href") || "";
-        const slug = link.split("/").filter(Boolean).pop() || "";
-        const poster = $a.find("img").first().attr("src") || $a.find("img").first().attr("data-src") || "";
-        const episode = $a.find(".episode, .ep").first().text().trim();
-        if (title) animes.push({ title, slug, poster, episode, type: "TV" });
-      });
-
-      if (animes.length > 0) {
-        schedule.push({ day, animes });
-      }
-    });
-
-    return res.status(200).json(schedule);
+    const { data } = await api.get("/anime/schedule");
+    const raw: Record<string, unknown>[] = Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data)
+      ? data
+      : [];
+    const mapped = raw.map((d) => ({
+      day: d.day,
+      animes: ((d.anime_list as Record<string, unknown>[]) || []).map((a) => ({
+        title: a.title,
+        slug: a.slug,
+        poster: a.poster,
+        href: a.url,
+      })),
+    }));
+    return res.status(200).json(mapped);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Failed to fetch" });
+    console.error("schedule error:", err);
+    return res.status(500).json({ error: "Failed to fetch schedule" });
   }
 }
