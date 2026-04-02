@@ -1,30 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import axios from "axios";
 import {
-  Play, ArrowLeft, ChevronRight, ExternalLink, Monitor,
-  AlertCircle, Download, Copy, Check, RefreshCw, Video
+  Play, ArrowLeft, ChevronRight, Monitor,
+  AlertCircle, RefreshCw, Wifi, Zap, Signal
 } from "lucide-react";
 import { fetchEpisode, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
 import { AdBanner } from "@/components/AdBanner";
 
 const SAMPLE_SERVERS: EpisodeServer[] = [
-  { name: "Server 1 (Winbu)", serverId: "winbu?post=66146&nume=1&type=schtml" },
-  { name: "Server 2 (HD)", serverId: "6DC77B-6-8B5u" },
-  { name: "Server 3 (SD)", serverId: "sd-p2" },
+  { name: "Nonton HD", serverId: "winbu?post=66146&nume=1&type=schtml" },
+  { name: "Nonton SD", serverId: "winbu?post=66146&nume=2&type=schtml" },
+  { name: "Backup 1", serverId: "6DC77B-6-8B5u" },
+  { name: "Backup 2", serverId: "sd-p2" },
 ];
 
 interface StreamData {
   url: string;
-  type: string;
-  isVideo: boolean;
+  isEmbed: boolean;
+  isDirect: boolean;
 }
 
 function VideoPlayer({ serverId }: { serverId: string }) {
   const [stream, setStream] = useState<StreamData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const fetchStream = async () => {
     setLoading(true);
@@ -37,22 +38,24 @@ function VideoPlayer({ serverId }: { serverId: string }) {
         : `/api/anime/server/${encodeURIComponent(serverId)}`;
 
       const { data } = await axios.get<{ url: string; type: string }>(apiUrl, {
-        timeout: 15000,
+        timeout: 20000,
       });
 
-      if (!data?.url) throw new Error("URL stream tidak ditemukan");
+      if (!data?.url) throw new Error("URL tidak ditemukan");
 
-      const isVideo =
-        /\.(mp4|mkv|webm|avi|mov|m3u8)/i.test(data.url) ||
-        data.url.includes("stream") ||
-        data.url.includes("video");
+      const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(data.url);
+      const isEmbed = !isDirect;
 
-      setStream({ url: data.url, type: data.type || "embed", isVideo });
+      setStream({ url: data.url, isEmbed, isDirect });
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.error || err.message || "Gagal menghubungi server");
+        if (err.code === "ECONNABORTED") {
+          setError("Koneksi timeout. Coba server lain.");
+        } else {
+          setError(err.response?.data?.error || "Server tidak merespons");
+        }
       } else {
-        setError("Server tidak merespons. Coba server lain.");
+        setError("Gagal memuat stream. Coba server lain.");
       }
     } finally {
       setLoading(false);
@@ -63,19 +66,17 @@ function VideoPlayer({ serverId }: { serverId: string }) {
     fetchStream();
   }, [serverId]);
 
-  const handleCopy = () => {
-    if (!stream?.url) return;
-    navigator.clipboard.writeText(stream.url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (loading) {
     return (
       <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">Mengambil stream dengan axios...</p>
+        <div className="text-center space-y-3">
+          <div className="w-14 h-14 border-[3px] border-purple-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-400 text-sm">Menghubungkan ke server...</p>
+          <div className="flex items-center justify-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+          </div>
         </div>
       </div>
     );
@@ -84,19 +85,21 @@ function VideoPlayer({ serverId }: { serverId: string }) {
   if (error) {
     return (
       <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
-        <div className="text-center px-6">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-          <p className="text-gray-300 font-medium mb-1">Server Tidak Tersedia</p>
-          <p className="text-gray-500 text-sm mb-4">{error}</p>
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={fetchStream}
-              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Coba Lagi
-            </button>
+        <div className="text-center px-6 space-y-4">
+          <div className="w-16 h-16 rounded-full bg-red-900/30 border border-red-700/50 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-8 h-8 text-red-400" />
           </div>
+          <div>
+            <p className="text-gray-300 font-semibold mb-1">Server Tidak Tersedia</p>
+            <p className="text-gray-500 text-sm">{error}</p>
+          </div>
+          <button
+            onClick={fetchStream}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors mx-auto"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Coba Lagi
+          </button>
         </div>
       </div>
     );
@@ -104,79 +107,37 @@ function VideoPlayer({ serverId }: { serverId: string }) {
 
   if (!stream) return null;
 
-  if (stream.isVideo) {
+  if (stream.isDirect) {
     return (
-      <div className="w-full rounded-xl overflow-hidden bg-black">
+      <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
         <video
           key={stream.url}
           controls
           autoPlay
+          playsInline
           className="w-full aspect-video"
           src={stream.url}
+          style={{ maxHeight: "75vh" }}
         >
-          Browser Anda tidak mendukung tag video.
+          Browser tidak mendukung video HTML5.
         </video>
-        <div className="bg-[hsl(222,47%,8%)] px-4 py-2 flex items-center justify-between">
-          <span className="text-xs text-gray-400 truncate flex-1 mr-4 font-mono">
-            {stream.url.length > 60 ? stream.url.slice(0, 60) + "..." : stream.url}
-          </span>
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? "Disalin!" : "Salin URL"}
-            </button>
-            <a
-              href={stream.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Unduh
-            </a>
-          </div>
-        </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full rounded-xl overflow-hidden bg-[hsl(222,47%,8%)] border border-purple-900/20">
-      <div className="aspect-video flex flex-col items-center justify-center gap-5 px-6">
-        <div className="w-20 h-20 rounded-full bg-purple-600/20 border-2 border-purple-500 flex items-center justify-center">
-          <Video className="w-9 h-9 text-purple-400" />
-        </div>
-        <div className="text-center">
-          <p className="text-white font-semibold text-lg mb-2">Stream Berhasil Diambil</p>
-          <p className="text-gray-400 text-sm mb-1">URL Stream (via Axios):</p>
-          <div className="bg-[hsl(222,47%,12%)] rounded-lg px-4 py-2 max-w-md mx-auto">
-            <p className="text-purple-300 text-xs font-mono break-all text-center">
-              {stream.url.length > 80 ? stream.url.slice(0, 80) + "..." : stream.url}
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <a
-            href={stream.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-full font-semibold text-sm transition-colors"
-          >
-            <Play className="w-4 h-4 fill-white" />
-            Tonton Video
-          </a>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-2 bg-[hsl(222,47%,16%)] hover:bg-[hsl(222,47%,20%)] text-gray-300 hover:text-white px-5 py-2.5 rounded-full text-sm transition-colors"
-          >
-            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-            {copied ? "Disalin!" : "Salin URL"}
-          </button>
-        </div>
-      </div>
+    <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
+      <iframe
+        ref={iframeRef}
+        key={stream.url}
+        src={stream.url}
+        className="w-full aspect-video"
+        allowFullScreen
+        allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+        title="Anime Stream Player"
+        scrolling="no"
+        style={{ border: "none", display: "block" }}
+      />
     </div>
   );
 }
@@ -190,6 +151,7 @@ export default function Watch() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetchEpisode(slug)
       .then((data) => {
         setEpisode(data);
@@ -202,23 +164,25 @@ export default function Watch() {
       .finally(() => setLoading(false));
   }, [slug]);
 
-  const title = episode?.title || slug.replace(/-/g, " ").replace(/sub indo/i, "Sub Indo");
+  const title = episode?.title || slug.replace(/-/g, " ").replace(/\bsub indo\b/i, "Sub Indo");
+
+  const serverIcons = [Zap, Signal, Wifi, Play];
 
   return (
     <div className="min-h-screen bg-[hsl(222,47%,5%)] pt-20 pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 mb-6 text-sm text-gray-400">
+        <div className="flex items-center gap-2 mb-5 text-sm text-gray-400">
           <Link href="/" className="flex items-center gap-1 hover:text-purple-400 transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Beranda
           </Link>
           <ChevronRight className="w-3 h-3" />
-          <span className="text-white truncate">{title}</span>
+          <span className="text-white truncate max-w-xs">{title}</span>
         </div>
 
-        <AdBanner position="top" className="mb-4" />
+        <AdBanner position="top" className="mb-5" />
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             {loading ? (
               <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl animate-pulse" />
@@ -227,38 +191,48 @@ export default function Watch() {
             )}
 
             <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
-              <h1 className="text-xl font-bold text-white mb-1">
-                {episode?.title || title}
-              </h1>
-              {episode?.anime && (
-                <p className="text-purple-400 text-sm mb-3">{episode.anime}</p>
-              )}
-              {episode?.synopsis && (
-                <p className="text-gray-400 text-sm leading-relaxed">{episode.synopsis}</p>
-              )}
+              <div className="flex items-center gap-2 mb-4">
+                <Monitor className="w-4 h-4 text-purple-400" />
+                <h2 className="text-sm font-semibold text-white">Pilih Server Streaming</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {servers.map((server, idx) => {
+                  const Icon = serverIcons[idx % serverIcons.length];
+                  const isActive = activeServer.serverId === server.serverId;
+                  return (
+                    <button
+                      key={server.serverId}
+                      onClick={() => setActiveServer(server)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                        isActive
+                          ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/40"
+                          : "bg-[hsl(222,47%,12%)] border-purple-900/20 text-gray-300 hover:bg-[hsl(222,47%,18%)] hover:text-white hover:border-purple-700/40"
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 ${isActive ? "text-yellow-300" : "text-gray-500"}`} />
+                      {server.name}
+                      {idx === 0 && (
+                        <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full font-semibold">
+                          CEPAT
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Jika server tidak berjalan, coba pilih server lain
+              </p>
             </div>
 
             <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
-              <div className="flex items-center gap-2 mb-4">
-                <Monitor className="w-4 h-4 text-purple-400" />
-                <h2 className="text-sm font-semibold text-white">Pilih Server</h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {servers.map((server) => (
-                  <button
-                    key={server.serverId}
-                    onClick={() => setActiveServer(server)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      activeServer.serverId === server.serverId
-                        ? "bg-purple-600 text-white shadow-lg shadow-purple-900/50"
-                        : "bg-[hsl(222,47%,12%)] text-gray-300 hover:bg-[hsl(222,47%,18%)] hover:text-white"
-                    }`}
-                  >
-                    <Play className="w-3 h-3" />
-                    {server.name}
-                  </button>
-                ))}
-              </div>
+              <h1 className="text-xl font-bold text-white mb-1">{episode?.title || title}</h1>
+              {episode?.anime && (
+                <p className="text-purple-400 text-sm mb-2">{episode.anime}</p>
+              )}
+              {episode?.synopsis && (
+                <p className="text-gray-400 text-sm leading-relaxed line-clamp-3">{episode.synopsis}</p>
+              )}
             </div>
           </div>
 
@@ -266,53 +240,39 @@ export default function Watch() {
             <AdBanner position="sidebar" />
 
             <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
-              <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                <ExternalLink className="w-4 h-4 text-purple-400" />
-                Link Langsung
-              </h2>
-              <div className="space-y-2">
-                <a
-                  href="https://www.sankavollerei.com/anime/home"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Buka di sumber
-                </a>
-                <a
-                  href={`https://www.sankavollerei.com/anime/episode/${slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Episode asli
-                </a>
-              </div>
-            </div>
-
-            <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
               <h2 className="text-sm font-semibold text-white mb-4">Episode Lainnya</h2>
-              <div className="space-y-3">
-                {Array.from({ length: 8 }).map((_, i) => {
+              <div className="space-y-2">
+                {Array.from({ length: 10 }).map((_, i) => {
                   const ep = 10 - i;
-                  return ep > 0 ? (
+                  if (ep <= 0) return null;
+                  const isActive = slug.includes(`episode-${ep}`);
+                  return (
                     <Link
                       key={ep}
                       href={`/tonton/${slug.replace(/episode-\d+/, `episode-${ep}`)}`}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-[hsl(222,47%,12%)] transition-colors group"
+                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors group ${
+                        isActive
+                          ? "bg-purple-600/20 border border-purple-600/40"
+                          : "hover:bg-[hsl(222,47%,12%)]"
+                      }`}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-[hsl(222,47%,12%)] flex items-center justify-center flex-shrink-0 group-hover:bg-purple-900/40">
-                        <span className="text-xs font-medium text-gray-400 group-hover:text-purple-300">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isActive ? "bg-purple-600" : "bg-[hsl(222,47%,12%)] group-hover:bg-purple-900/40"
+                      }`}>
+                        <span className={`text-xs font-bold ${isActive ? "text-white" : "text-gray-400 group-hover:text-purple-300"}`}>
                           {ep}
                         </span>
                       </div>
-                      <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
+                      <span className={`text-sm transition-colors ${
+                        isActive ? "text-purple-300 font-medium" : "text-gray-300 group-hover:text-white"
+                      }`}>
                         Episode {ep}
                       </span>
+                      {isActive && (
+                        <span className="ml-auto text-[10px] text-purple-400 font-medium">Aktif</span>
+                      )}
                     </Link>
-                  ) : null;
+                  );
                 })}
               </div>
             </div>
