@@ -1,4 +1,6 @@
-const BASE = "/api/anime";
+import axios from "axios";
+
+const client = axios.create({ baseURL: "/api/anime", timeout: 20000 });
 
 export interface AnimeItem {
   title: string;
@@ -6,9 +8,10 @@ export interface AnimeItem {
   poster?: string;
   episode?: string;
   type?: string;
-  status?: string;
   rating?: string;
-  genres?: string[];
+  releaseDay?: string;
+  latestReleaseDate?: string;
+  href?: string;
 }
 
 export interface ScheduleDay {
@@ -19,49 +22,49 @@ export interface ScheduleDay {
 export interface EpisodeServer {
   name: string;
   serverId: string;
+  quality?: string;
+}
+
+export interface EpisodeNav {
+  title: string;
+  episodeId: string;
+  href: string;
 }
 
 export interface EpisodeDetail {
   title: string;
   anime: string;
-  episode: string;
+  animeId?: string;
+  defaultStreamingUrl: string;
+  releaseTime?: string;
   servers: EpisodeServer[];
+  prevEpisode?: EpisodeNav | null;
+  nextEpisode?: EpisodeNav | null;
   synopsis?: string;
   poster?: string;
 }
 
-export interface VideoServer {
-  url: string;
-  type: string;
-}
-
 export async function fetchHome(): Promise<AnimeItem[]> {
-  const res = await fetch(`${BASE}/home`);
-  if (!res.ok) throw new Error("Failed to fetch home");
-  return res.json();
+  const { data } = await client.get<AnimeItem[]>("/home");
+  return data;
 }
 
 export async function fetchSchedule(): Promise<ScheduleDay[]> {
-  const res = await fetch(`${BASE}/schedule`);
-  if (!res.ok) throw new Error("Failed to fetch schedule");
-  return res.json();
+  const { data } = await client.get<ScheduleDay[]>("/schedule");
+  return data;
 }
 
 export async function fetchEpisode(slug: string): Promise<EpisodeDetail> {
-  const res = await fetch(`${BASE}/episode/${encodeURIComponent(slug)}`);
-  if (!res.ok) throw new Error("Failed to fetch episode");
-  return res.json();
+  const { data } = await client.get<EpisodeDetail>(`/episode/${encodeURIComponent(slug)}`);
+  return data;
 }
 
-export async function fetchServer(serverId: string): Promise<VideoServer> {
-  const res = await fetch(`${BASE}/server/${encodeURIComponent(serverId)}`);
-  if (!res.ok) throw new Error("Failed to fetch server");
-  return res.json();
+export async function fetchServer(serverId: string): Promise<{ url: string }> {
+  const { data } = await client.get<{ url: string }>(`/server/${encodeURIComponent(serverId)}`);
+  return data;
 }
 
-export async function fetchWinbuServer(post: string, nume: string, type: string): Promise<VideoServer> {
-  const params = new URLSearchParams({ post, nume, type });
-  const res = await fetch(`${BASE}/winbu/server?${params}`);
-  if (!res.ok) throw new Error("Failed to fetch winbu server");
-  return res.json();
+export async function fetchWinbuServer(post: string, nume = "1", type = "schtml"): Promise<{ url: string }> {
+  const { data } = await client.get<{ url: string }>("/winbu/server", { params: { post, nume, type } });
+  return data;
 }
