@@ -1,33 +1,48 @@
-# AniStream - Website Streaming Anime Sub Indonesia
+# Anime Streaming
 
-Website streaming anime sub Indonesia yang dapat di-deploy di Vercel.
+Aplikasi streaming anime berbahasa Indonesia dengan panel admin untuk manajemen iklan.
 
-## Tech Stack
-- **Frontend**: React + Vite + Tailwind CSS
-- **Backend API**: Vercel Serverless Functions (proxy ke sankavollerei.com)
-- **Deployment**: Vercel
+## Fitur
+
+- **Beranda** - Daftar episode terbaru dan anime populer
+- **Jadwal** - Jadwal rilis anime mingguan
+- **Tonton** - Halaman streaming dengan multi-server dan multi-kualitas
+- **Admin** - Panel admin untuk memasang dan menghapus iklan
 
 ## API Endpoints
-- `/api/anime/home` - Daftar anime terbaru
-- `/api/anime/schedule` - Jadwal tayang
-- `/api/anime/episode/:slug` - Detail episode
-- `/api/anime/server/:id` - Server video
-- `/api/anime/winbu/server?post=...&nume=...&type=...` - Winbu server
+
+| Endpoint | Deskripsi |
+|---|---|
+| `GET /api/anime/home` | Daftar anime ongoing terbaru |
+| `GET /api/anime/schedule` | Jadwal rilis mingguan |
+| `GET /api/anime/episode/:slug` | Detail episode + daftar server |
+| `GET /api/anime/server/:id` | URL stream dari server |
+| `GET /api/anime/winbu/server` | URL stream winbu |
+| `GET /api/anime/proxy?url=` | Proxy URL streaming |
+
+## Admin Panel
+
+Akses admin di `/admin`
+
+- **Password default:** `cipung`
+- Tambah iklan (banner/skrip) di berbagai posisi halaman
+- Hapus iklan yang sudah tidak digunakan
 
 ## Deploy ke Vercel
 
-1. Fork repository ini
-2. Login ke [Vercel](https://vercel.com)
-3. Import repository dari GitHub
-4. Vercel akan auto-detect konfigurasi dari `vercel.json`
-5. Deploy!
+1. Import repo ini ke [vercel.com](https://vercel.com)
+2. Pilih **Framework Preset**: Other
+3. **Build Command**: `npm run build`
+4. **Output Directory**: `dist/public`
+5. **Install Command**: `npm install`
+6. Klik **Deploy**
 
-## Fitur
-- 🎬 Halaman utama dengan hero & daftar anime
-- 📅 Jadwal tayang mingguan
-- 📺 Video player dengan multi-server
-- 🌙 Dark theme anime-style
-- 📱 Responsive untuk mobile & desktop
+> Konfigurasi sudah ada di `vercel.json`, tidak perlu pengaturan tambahan.
 
-## Source API
-Semua data diambil dari [sankavollerei.com](https://www.sankavollerei.com)
+## Teknologi
+
+- **Frontend**: React 19 + Vite + TailwindCSS
+- **API**: Vercel Serverless Functions + Axios
+- **Data Source**: [sankavollerei.com](https://www.sankavollerei.com)
+- **State**: TanStack Query
+- **Routing**: Wouter
