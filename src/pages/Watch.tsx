@@ -1,123 +1,41 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useParams } from "wouter";
-import axios from "axios";
 import {
-  Play, ArrowLeft, ChevronRight, Monitor,
-  AlertCircle, RefreshCw, Wifi, Zap, Signal
+  Play, ArrowLeft, ChevronRight, ChevronLeft, Monitor,
+  AlertCircle, RefreshCw, Zap, Signal, Wifi, Loader2
 } from "lucide-react";
-import { fetchEpisode, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
+import { fetchEpisode, fetchServer, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
 import { AdBanner } from "@/components/AdBanner";
 
-const SAMPLE_SERVERS: EpisodeServer[] = [
-  { name: "Nonton HD", serverId: "winbu?post=66146&nume=1&type=schtml" },
-  { name: "Nonton SD", serverId: "winbu?post=66146&nume=2&type=schtml" },
-  { name: "Backup 1", serverId: "6DC77B-6-8B5u" },
-  { name: "Backup 2", serverId: "sd-p2" },
-];
-
-interface StreamData {
+interface ActiveStream {
   url: string;
-  isEmbed: boolean;
-  isDirect: boolean;
+  key: string;
 }
 
-function VideoPlayer({ serverId }: { serverId: string }) {
-  const [stream, setStream] = useState<StreamData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const fetchStream = async () => {
-    setLoading(true);
-    setError(null);
-    setStream(null);
-
-    try {
-      const apiUrl = serverId.startsWith("winbu?")
-        ? `/api/anime/winbu/server?${serverId.replace("winbu?", "")}`
-        : `/api/anime/server/${encodeURIComponent(serverId)}`;
-
-      const { data } = await axios.get<{ url: string; type: string }>(apiUrl, {
-        timeout: 20000,
-      });
-
-      if (!data?.url) throw new Error("URL tidak ditemukan");
-
-      const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(data.url);
-      const isEmbed = !isDirect;
-
-      setStream({ url: data.url, isEmbed, isDirect });
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        if (err.code === "ECONNABORTED") {
-          setError("Koneksi timeout. Coba server lain.");
-        } else {
-          setError(err.response?.data?.error || "Server tidak merespons");
-        }
-      } else {
-        setError("Gagal memuat stream. Coba server lain.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStream();
-  }, [serverId]);
-
-  if (loading) {
+function VideoPlayer({ streamUrl }: { streamUrl: string }) {
+  if (!streamUrl) {
     return (
       <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-14 h-14 border-[3px] border-purple-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-400 text-sm">Menghubungkan ke server...</p>
-          <div className="flex items-center justify-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: "300ms" }} />
-          </div>
+        <div className="text-center">
+          <AlertCircle className="w-10 h-10 text-gray-600 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm">URL stream tidak tersedia</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
-        <div className="text-center px-6 space-y-4">
-          <div className="w-16 h-16 rounded-full bg-red-900/30 border border-red-700/50 flex items-center justify-center mx-auto">
-            <AlertCircle className="w-8 h-8 text-red-400" />
-          </div>
-          <div>
-            <p className="text-gray-300 font-semibold mb-1">Server Tidak Tersedia</p>
-            <p className="text-gray-500 text-sm">{error}</p>
-          </div>
-          <button
-            onClick={fetchStream}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors mx-auto"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Coba Lagi
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(streamUrl);
 
-  if (!stream) return null;
-
-  if (stream.isDirect) {
+  if (isDirect) {
     return (
       <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
         <video
-          key={stream.url}
+          key={streamUrl}
           controls
           autoPlay
           playsInline
           className="w-full aspect-video"
-          src={stream.url}
-          style={{ maxHeight: "75vh" }}
+          src={streamUrl}
         >
           Browser tidak mendukung video HTML5.
         </video>
@@ -128,45 +46,96 @@ function VideoPlayer({ serverId }: { serverId: string }) {
   return (
     <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
       <iframe
-        ref={iframeRef}
-        key={stream.url}
-        src={stream.url}
+        key={streamUrl}
+        src={streamUrl}
         className="w-full aspect-video"
         allowFullScreen
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-        title="Anime Stream Player"
+        title="Stream Player"
         scrolling="no"
+        referrerPolicy="no-referrer-when-downgrade"
         style={{ border: "none", display: "block" }}
       />
     </div>
   );
 }
 
+const SERVER_ICONS = [Zap, Signal, Wifi, Play, Monitor];
+const QUALITY_COLORS: Record<string, string> = {
+  "720p": "text-blue-400",
+  "480p": "text-green-400",
+  "360p": "text-yellow-400",
+  "1080p": "text-purple-400",
+};
+
 export default function Watch() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug || "sd-p2-episode-10-sub-indo";
+
   const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
-  const [servers, setServers] = useState<EpisodeServer[]>(SAMPLE_SERVERS);
-  const [activeServer, setActiveServer] = useState<EpisodeServer>(SAMPLE_SERVERS[0]);
   const [loading, setLoading] = useState(true);
+  const [activeStream, setActiveStream] = useState<ActiveStream | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [activeServerId, setActiveServerId] = useState<string>("default");
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setLoading(true);
+    setActiveStream(null);
+    setServerError(null);
+    setActiveServerId("default");
+
     fetchEpisode(slug)
       .then((data) => {
         setEpisode(data);
-        if (data.servers?.length) {
-          setServers(data.servers);
-          setActiveServer(data.servers[0]);
+        if (data.defaultStreamingUrl) {
+          setActiveStream({ url: data.defaultStreamingUrl, key: "default" });
         }
       })
-      .catch(() => {})
+      .catch(() => setServerError("Gagal memuat episode. Coba refresh."))
       .finally(() => setLoading(false));
   }, [slug]);
 
-  const title = episode?.title || slug.replace(/-/g, " ").replace(/\bsub indo\b/i, "Sub Indo");
+  const switchServer = async (server: EpisodeServer) => {
+    if (serverLoading) return;
+    if (abortRef.current) abortRef.current.abort();
 
-  const serverIcons = [Zap, Signal, Wifi, Play];
+    setActiveServerId(server.serverId);
+    setServerLoading(true);
+    setServerError(null);
+
+    try {
+      const result = await fetchServer(server.serverId);
+      if (result?.url) {
+        setActiveStream({ url: result.url, key: server.serverId });
+      } else {
+        setServerError("Server tidak mengembalikan URL. Coba server lain.");
+      }
+    } catch {
+      setServerError("Server tidak merespons. Coba pilih server lain.");
+    } finally {
+      setServerLoading(false);
+    }
+  };
+
+  const useDefault = () => {
+    if (!episode?.defaultStreamingUrl) return;
+    setActiveServerId("default");
+    setActiveStream({ url: episode.defaultStreamingUrl, key: "default" });
+    setServerError(null);
+  };
+
+  const title = episode?.title || slug.replace(/-/g, " ").replace(/\bsub indo\b/i, "Sub Indo");
+  const prevSlug = episode?.prevEpisode?.episodeId;
+  const nextSlug = episode?.nextEpisode?.episodeId;
+
+  const groupedServers: Record<string, EpisodeServer[]> = {};
+  for (const s of episode?.servers || []) {
+    const q = s.quality || "Lainnya";
+    if (!groupedServers[q]) groupedServers[q] = [];
+    groupedServers[q].push(s);
+  }
 
   return (
     <div className="min-h-screen bg-[hsl(222,47%,5%)] pt-20 pb-12">
@@ -185,9 +154,47 @@ export default function Watch() {
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             {loading ? (
-              <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl animate-pulse" />
-            ) : (
-              <VideoPlayer serverId={activeServer.serverId} />
+              <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+                <div className="text-center space-y-3">
+                  <div className="w-14 h-14 border-[3px] border-purple-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-gray-400 text-sm">Memuat episode...</p>
+                </div>
+              </div>
+            ) : serverError && !activeStream ? (
+              <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+                <div className="text-center px-6 space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-red-900/30 border border-red-700/50 flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-8 h-8 text-red-400" />
+                  </div>
+                  <p className="text-gray-300 font-semibold">{serverError}</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors mx-auto"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+            ) : activeStream ? (
+              <div className="relative">
+                {serverLoading && (
+                  <div className="absolute inset-0 bg-black/70 z-10 rounded-xl flex items-center justify-center">
+                    <div className="text-center">
+                      <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-2" />
+                      <p className="text-gray-300 text-sm">Beralih server...</p>
+                    </div>
+                  </div>
+                )}
+                <VideoPlayer streamUrl={activeStream.url} />
+              </div>
+            ) : null}
+
+            {serverError && activeStream && (
+              <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-lg px-4 py-2.5 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                <p className="text-yellow-300 text-sm">{serverError}</p>
+              </div>
             )}
 
             <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
@@ -195,43 +202,84 @@ export default function Watch() {
                 <Monitor className="w-4 h-4 text-purple-400" />
                 <h2 className="text-sm font-semibold text-white">Pilih Server Streaming</h2>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {servers.map((server, idx) => {
-                  const Icon = serverIcons[idx % serverIcons.length];
-                  const isActive = activeServer.serverId === server.serverId;
-                  return (
-                    <button
-                      key={server.serverId}
-                      onClick={() => setActiveServer(server)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${
-                        isActive
-                          ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/40"
-                          : "bg-[hsl(222,47%,12%)] border-purple-900/20 text-gray-300 hover:bg-[hsl(222,47%,18%)] hover:text-white hover:border-purple-700/40"
-                      }`}
-                    >
-                      <Icon className={`w-3.5 h-3.5 ${isActive ? "text-yellow-300" : "text-gray-500"}`} />
-                      {server.name}
-                      {idx === 0 && (
-                        <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full font-semibold">
-                          CEPAT
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+
+              <div className="mb-3">
+                <p className="text-[11px] text-gray-500 uppercase font-semibold mb-2 tracking-wider">Default</p>
+                <button
+                  onClick={useDefault}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                    activeServerId === "default"
+                      ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/40"
+                      : "bg-[hsl(222,47%,12%)] border-purple-900/20 text-gray-300 hover:bg-[hsl(222,47%,18%)] hover:text-white"
+                  }`}
+                >
+                  <Zap className={`w-3.5 h-3.5 ${activeServerId === "default" ? "text-yellow-300" : "text-gray-500"}`} />
+                  Server Utama
+                  <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full font-semibold">
+                    CEPAT
+                  </span>
+                </button>
               </div>
-              <p className="text-xs text-gray-500 mt-3">
-                Jika server tidak berjalan, coba pilih server lain
+
+              {Object.entries(groupedServers).map(([quality, servers]) => (
+                <div key={quality} className="mb-3">
+                  <p className="text-[11px] text-gray-500 uppercase font-semibold mb-2 tracking-wider flex items-center gap-1">
+                    <span className={QUALITY_COLORS[quality] || "text-gray-400"}>{quality}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {servers.map((server, idx) => {
+                      const Icon = SERVER_ICONS[idx % SERVER_ICONS.length];
+                      const isActive = activeServerId === server.serverId;
+                      return (
+                        <button
+                          key={server.serverId}
+                          onClick={() => switchServer(server)}
+                          disabled={serverLoading}
+                          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all border disabled:opacity-60 ${
+                            isActive
+                              ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/40"
+                              : "bg-[hsl(222,47%,12%)] border-purple-900/20 text-gray-300 hover:bg-[hsl(222,47%,18%)] hover:text-white hover:border-purple-700/40"
+                          }`}
+                        >
+                          <Icon className={`w-3.5 h-3.5 ${isActive ? "text-yellow-300" : "text-gray-500"}`} />
+                          {server.name.split(" (")[0]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              <p className="text-xs text-gray-500 mt-2">
+                Jika video tidak muncul, coba pilih server lain di bawah
               </p>
             </div>
 
             <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
-              <h1 className="text-xl font-bold text-white mb-1">{episode?.title || title}</h1>
-              {episode?.anime && (
-                <p className="text-purple-400 text-sm mb-2">{episode.anime}</p>
+              <h1 className="text-xl font-bold text-white mb-1">{title}</h1>
+              {episode?.releaseTime && (
+                <p className="text-gray-500 text-xs">{episode.releaseTime}</p>
               )}
-              {episode?.synopsis && (
-                <p className="text-gray-400 text-sm leading-relaxed line-clamp-3">{episode.synopsis}</p>
+            </div>
+
+            <div className="flex gap-3">
+              {prevSlug && (
+                <Link
+                  href={`/tonton/${prevSlug}`}
+                  className="flex-1 flex items-center justify-center gap-2 bg-[hsl(222,47%,10%)] hover:bg-[hsl(222,47%,15%)] border border-purple-900/30 text-gray-300 hover:text-white px-4 py-3 rounded-xl text-sm font-medium transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Episode Sebelumnya
+                </Link>
+              )}
+              {nextSlug && (
+                <Link
+                  href={`/tonton/${nextSlug}`}
+                  className="flex-1 flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl text-sm font-semibold transition-all"
+                >
+                  Episode Berikutnya
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
               )}
             </div>
           </div>
@@ -239,42 +287,40 @@ export default function Watch() {
           <div className="space-y-4">
             <AdBanner position="sidebar" />
 
-            <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
-              <h2 className="text-sm font-semibold text-white mb-4">Episode Lainnya</h2>
-              <div className="space-y-2">
-                {Array.from({ length: 10 }).map((_, i) => {
-                  const ep = 10 - i;
-                  if (ep <= 0) return null;
-                  const isActive = slug.includes(`episode-${ep}`);
-                  return (
+            {(prevSlug || nextSlug) && (
+              <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
+                <h2 className="text-sm font-semibold text-white mb-3">Navigasi Episode</h2>
+                <div className="space-y-2">
+                  {prevSlug && (
                     <Link
-                      key={ep}
-                      href={`/tonton/${slug.replace(/episode-\d+/, `episode-${ep}`)}`}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors group ${
-                        isActive
-                          ? "bg-purple-600/20 border border-purple-600/40"
-                          : "hover:bg-[hsl(222,47%,12%)]"
-                      }`}
+                      href={`/tonton/${prevSlug}`}
+                      className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[hsl(222,47%,12%)] transition-colors group"
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isActive ? "bg-purple-600" : "bg-[hsl(222,47%,12%)] group-hover:bg-purple-900/40"
-                      }`}>
-                        <span className={`text-xs font-bold ${isActive ? "text-white" : "text-gray-400 group-hover:text-purple-300"}`}>
-                          {ep}
-                        </span>
-                      </div>
-                      <span className={`text-sm transition-colors ${
-                        isActive ? "text-purple-300 font-medium" : "text-gray-300 group-hover:text-white"
-                      }`}>
-                        Episode {ep}
-                      </span>
-                      {isActive && (
-                        <span className="ml-auto text-[10px] text-purple-400 font-medium">Aktif</span>
-                      )}
+                      <ChevronLeft className="w-4 h-4 text-gray-500 group-hover:text-purple-400" />
+                      <span className="text-sm text-gray-300 group-hover:text-white">Episode Sebelumnya</span>
                     </Link>
-                  );
-                })}
+                  )}
+                  {nextSlug && (
+                    <Link
+                      href={`/tonton/${nextSlug}`}
+                      className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-[hsl(222,47%,12%)] transition-colors group"
+                    >
+                      <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-purple-400" />
+                      <span className="text-sm text-gray-300 group-hover:text-white">Episode Berikutnya</span>
+                    </Link>
+                  )}
+                </div>
               </div>
+            )}
+
+            <div className="bg-[hsl(222,47%,8%)] rounded-xl p-5 border border-purple-900/20">
+              <h2 className="text-sm font-semibold text-white mb-1">Tips Streaming</h2>
+              <ul className="text-xs text-gray-500 space-y-1.5 mt-2">
+                <li>• Gunakan <span className="text-purple-400">Server Utama</span> untuk kecepatan terbaik</li>
+                <li>• Pilih kualitas <span className="text-blue-400">720p</span> untuk HD</li>
+                <li>• Pilih kualitas <span className="text-green-400">480p</span> jika koneksi lambat</li>
+                <li>• Aktifkan fullscreen untuk pengalaman terbaik</li>
+              </ul>
             </div>
           </div>
         </div>
