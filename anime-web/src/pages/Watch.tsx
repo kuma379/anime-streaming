@@ -1,0 +1,334 @@
+import { useEffect, useState, useRef } from "react";
+import { Link, useParams } from "wouter";
+import {
+  Play, ArrowLeft, ChevronRight, ChevronLeft, Monitor,
+  AlertCircle, RefreshCw, Loader2, Zap, Signal, Wifi
+} from "lucide-react";
+import { fetchEpisode, fetchServer, getProxiedUrl, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
+import { AdBanner } from "@/components/AdBanner";
+import { getServerPref } from "./Admin";
+
+interface ActiveStream { url: string; key: string; }
+
+function VideoPlayer({ streamUrl }: { streamUrl: string }) {
+  if (!streamUrl) {
+    return (
+      <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+        <div className="text-center">
+          <Monitor className="w-10 h-10 text-gray-600 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm">Pilih server di bawah untuk mulai menonton</p>
+        </div>
+      </div>
+    );
+  }
+  const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(streamUrl);
+  if (isDirect) {
+    return (
+      <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
+        <video key={streamUrl} controls autoPlay playsInline className="w-full aspect-video" src={streamUrl}>
+          Browser tidak mendukung video HTML5.
+        </video>
+      </div>
+    );
+  }
+  return (
+    <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
+      <iframe
+        key={streamUrl}
+        src={getProxiedUrl(streamUrl)}
+        className="w-full aspect-video"
+        allowFullScreen
+        allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+        title="Stream Player"
+        scrolling="no"
+        referrerPolicy="no-referrer-when-downgrade"
+        style={{ border: "none", display: "block" }}
+      />
+    </div>
+  );
+}
+
+const QUALITY_COLORS: Record<string, string> = {
+  "720p": "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  "480p": "bg-green-500/20 text-green-300 border-green-500/30",
+  "360p": "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  "1080p": "bg-purple-500/20 text-purple-300 border-purple-500/30",
+};
+const SERVER_ICONS = [Zap, Signal, Wifi, Play, Monitor];
+
+interface GroupedServers {
+  quality: string;
+  servers: EpisodeServer[];
+}
+
+function groupByQuality(servers: EpisodeServer[]): GroupedServers[] {
+  const map: Record<string, EpisodeServer[]> = {};
+  for (const s of servers) {
+    const q = s.quality || "Lainnya";
+    if (!map[q]) map[q] = [];
+    map[q].push(s);
+  }
+  const ORDER = ["1080p", "720p", "480p", "360p", "Lainnya"];
+  return ORDER.filter((q) => map[q]).map((q) => ({ quality: q, servers: map[q] }));
+}
+
+export default function Watch() {
+  const params = useParams<{ slug: string }>();
+  const slug = params?.slug || "";
+
+  const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeStream, setActiveStream] = useState<ActiveStream | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [activeServerId, setActiveServerId] = useState<string>("");
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
+    setActiveStream(null);
+    setServerError(null);
+    setActiveServerId("");
+
+    fetchEpisode(slug)
+      .then((data) => {
+        setEpisode(data);
+        const pref = getServerPref();
+
+        if (data.defaultStreamingUrl && pref.autoPlay) {
+          setActiveStream({ url: data.defaultStreamingUrl, key: "default" });
+          setActiveServerId("default");
+        } else if (data.servers.length > 0) {
+          const groups = groupByQuality(data.servers);
+          const prefGroup = groups.find((g) => g.quality === pref.defaultQuality) || groups[0];
+          if (prefGroup) {
+            const prefServer =
+              prefGroup.servers.find((s) =>
+                s.name.toLowerCase().includes(pref.preferredServer.toLowerCase())
+              ) || prefGroup.servers[0];
+            if (prefServer) autoLoadServer(prefServer);
+          }
+        }
+      })
+      .catch(() => setServerError("Gagal memuat episode. Pastikan link episode valid."))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  const autoLoadServer = async (server: EpisodeServer) => {
+    setActiveServerId(server.serverId);
+    setServerLoading(true);
+    try {
+      const { url } = await fetchServer(server.serverId);
+      if (url) setActiveStream({ url, key: server.serverId });
+    } catch {
+    } finally {
+      setServerLoading(false);
+    }
+  };
+
+  const handleServerClick = async (server: EpisodeServer) => {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    setActiveServerId(server.serverId);
+    setServerLoading(true);
+    setServerError(null);
+    try {
+      const { url } = await fetchServer(server.serverId);
+      if (url) {
+        setActiveStream({ url, key: server.serverId });
+      } else {
+        setServerError("URL stream tidak tersedia dari server ini. Coba server lain.");
+      }
+    } catch {
+      setServerError("Gagal memuat server. Coba server lain.");
+    } finally {
+      setServerLoading(false);
+    }
+  };
+
+  const handleDefaultStream = () => {
+    if (episode?.defaultStreamingUrl) {
+      setActiveStream({ url: episode.defaultStreamingUrl, key: "default" });
+      setActiveServerId("default");
+      setServerError(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[hsl(222,47%,5%)] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-3" />
+          <p className="text-gray-400">Memuat episode...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const grouped = episode ? groupByQuality(episode.servers) : [];
+
+  return (
+    <div className="min-h-screen bg-[hsl(222,47%,5%)]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm">
+            <ArrowLeft className="w-4 h-4" />
+            Beranda
+          </Link>
+          {episode && (
+            <>
+              <span className="text-gray-600">/</span>
+              <span className="text-gray-300 text-sm line-clamp-1">{episode.title}</span>
+            </>
+          )}
+        </div>
+
+        <AdBanner position="top" />
+
+        <div>
+          {serverLoading ? (
+            <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+              <div className="text-center">
+                <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">Memuat stream...</p>
+              </div>
+            </div>
+          ) : serverError && !activeStream ? (
+            <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+              <div className="text-center px-4">
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-300 text-sm mb-4">{serverError}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full text-sm mx-auto transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Coba Lagi
+                </button>
+              </div>
+            </div>
+          ) : (
+            <VideoPlayer streamUrl={activeStream?.url || ""} />
+          )}
+        </div>
+
+        {episode && (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-xl font-bold text-white">{episode.title}</h1>
+              {episode.releaseTime && (
+                <span className="text-xs text-gray-500 shrink-0 mt-1">{episode.releaseTime}</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {episode.prevEpisode?.episodeId && (
+                <Link
+                  href={`/tonton/${episode.prevEpisode.episodeId}`}
+                  className="flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition-colors px-3 py-2 rounded-lg bg-[hsl(222,47%,12%)] hover:bg-purple-900/20"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Episode Sebelumnya
+                </Link>
+              )}
+              {episode.nextEpisode?.episodeId && (
+                <Link
+                  href={`/tonton/${episode.nextEpisode.episodeId}`}
+                  className="flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition-colors px-3 py-2 rounded-lg bg-[hsl(222,47%,12%)] hover:bg-purple-900/20"
+                >
+                  Episode Selanjutnya
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              )}
+              {episode.animeId && (
+                <Link
+                  href={`/anime/${episode.animeId}`}
+                  className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors px-3 py-2 rounded-lg bg-[hsl(222,47%,12%)] hover:bg-white/5"
+                >
+                  Semua Episode
+                </Link>
+              )}
+            </div>
+
+            <div className="bg-[hsl(222,47%,8%)] rounded-2xl p-5 border border-purple-900/20">
+              <div className="flex items-center gap-2 mb-4">
+                <Monitor className="w-4 h-4 text-purple-400" />
+                <h2 className="text-sm font-semibold text-white">Pilih Server</h2>
+                {serverError && (
+                  <span className="text-xs text-red-400 flex items-center gap-1 ml-auto">
+                    <AlertCircle className="w-3 h-3" />
+                    {serverError}
+                  </span>
+                )}
+              </div>
+
+              {episode.defaultStreamingUrl && (
+                <div className="mb-4">
+                  <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Server Default</p>
+                  <button
+                    onClick={handleDefaultStream}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                      activeServerId === "default"
+                        ? "bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30"
+                        : "bg-[hsl(222,47%,12%)] text-gray-300 border-purple-900/20 hover:border-purple-600/40 hover:text-white"
+                    }`}
+                  >
+                    <Play className="w-4 h-4" />
+                    Streaming Default
+                    <span className="text-xs opacity-70">· Ondesu</span>
+                  </button>
+                </div>
+              )}
+
+              {grouped.length > 0 && (
+                <div className="space-y-4">
+                  {grouped.map((group) => (
+                    <div key={group.quality}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-xs px-2 py-0.5 rounded border font-semibold ${QUALITY_COLORS[group.quality] || "bg-gray-800 text-gray-400 border-gray-700"}`}>
+                          {group.quality}
+                        </span>
+                        <div className="flex-1 h-px bg-purple-900/20" />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.servers.map((server, i) => {
+                          const Icon = SERVER_ICONS[i % SERVER_ICONS.length];
+                          const isActive = activeServerId === server.serverId;
+                          return (
+                            <button
+                              key={server.serverId}
+                              onClick={() => handleServerClick(server)}
+                              disabled={serverLoading}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                                isActive
+                                  ? "bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30"
+                                  : "bg-[hsl(222,47%,12%)] text-gray-400 border-purple-900/20 hover:bg-purple-900/30 hover:text-white hover:border-purple-600/40"
+                              } disabled:opacity-60 disabled:cursor-not-allowed`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {server.name}
+                              {serverLoading && isActive && (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {grouped.length === 0 && !episode.defaultStreamingUrl && (
+                <p className="text-sm text-gray-500">Tidak ada server tersedia untuk episode ini.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        <AdBanner position="bottom" />
+      </div>
+    </div>
+  );
+}
