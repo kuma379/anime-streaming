@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Play, ChevronRight, Flame, Clock, Star, TrendingUp } from "lucide-react";
 import { AnimeCard } from "@/components/AnimeCard";
+import { AdBanner } from "@/components/AdBanner";
+import { Contact } from "@/components/Contact";
 import { type AnimeItem, fetchHome } from "@/lib/api";
 
 const FALLBACK_RECENT: AnimeItem[] = [
@@ -141,6 +143,8 @@ export default function Home() {
           </div>
         </section>
 
+        <AdBanner position="top" />
+
         <section className="bg-[hsl(222,47%,8%)] rounded-2xl p-6 border border-purple-900/20">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-purple-400" />
@@ -160,6 +164,10 @@ export default function Home() {
             ))}
           </div>
         </section>
+
+        <AdBanner position="bottom" />
+
+        <Contact />
       </div>
     </div>
   );
