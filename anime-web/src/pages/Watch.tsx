@@ -4,7 +4,7 @@ import {
   Play, ArrowLeft, ChevronRight, ChevronLeft, Monitor,
   AlertCircle, RefreshCw, Loader2, Zap, Signal, Wifi
 } from "lucide-react";
-import { fetchEpisode, fetchServer, getProxiedUrl, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
+import { fetchEpisode, fetchServer, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
 import { AdBanner } from "@/components/AdBanner";
 import { getServerPref } from "./Admin";
 
@@ -35,13 +35,14 @@ function VideoPlayer({ streamUrl }: { streamUrl: string }) {
     <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
       <iframe
         key={streamUrl}
-        src={getProxiedUrl(streamUrl)}
+        src={streamUrl}
         className="w-full aspect-video"
         allowFullScreen
-        allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+        allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
         title="Stream Player"
         scrolling="no"
-        referrerPolicy="no-referrer-when-downgrade"
+        referrerPolicy="no-referrer"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-pointer-lock"
         style={{ border: "none", display: "block" }}
       />
     </div>
