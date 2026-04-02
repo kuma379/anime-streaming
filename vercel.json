@@ -9,6 +9,7 @@
     }
   },
   "rewrites": [
+    { "source": "/api/anime/proxy", "destination": "/api/anime/proxy" },
     { "source": "/api/anime/winbu/server", "destination": "/api/anime/winbu/server" },
     { "source": "/api/anime/server/:id", "destination": "/api/anime/server/[id]" },
     { "source": "/api/anime/episode/:slug", "destination": "/api/anime/episode/[slug]" },
