@@ -43,8 +43,15 @@ export default function Home() {
   useEffect(() => {
     fetchHome()
       .then((data) => {
-        if (data && data.length > 0) {
-          setRecentAnime(data.slice(0, 8));
+        if (data?.length > 0) {
+          const mapped = data.map((a) => ({
+            ...a,
+            slug: a.slug || "",
+            episode: a.episode || (a as unknown as { episodes: number }).episodes
+              ? `Ep ${(a as unknown as { episodes: number }).episodes}`
+              : "",
+          }));
+          setRecentAnime(mapped.slice(0, 8));
         }
       })
       .catch(() => {})
