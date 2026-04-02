@@ -99,6 +99,23 @@ router.get("/anime/detail/:animeId", async (req, res) => {
       poster: r.poster,
       type: r.type || "TV",
     }));
+
+    // synopsis may be an object {paragraphs:[], connections:[]} — flatten to string
+    let synopsis = "";
+    if (typeof d.synopsis === "string") {
+      synopsis = d.synopsis;
+    } else if (d.synopsis && typeof d.synopsis === "object") {
+      const synObj = d.synopsis as Record<string, unknown>;
+      const paras = Array.isArray(synObj.paragraphs) ? synObj.paragraphs as string[] : [];
+      synopsis = paras.join(" ").trim();
+    }
+
+    // genreList: normalize slug field (API uses genreId)
+    const genreList = ((d.genreList as Record<string, unknown>[]) || []).map((g) => ({
+      title: g.title,
+      slug: g.genreId || g.slug || "",
+    }));
+
     res.json({
       title: d.title,
       poster: d.poster,
@@ -111,8 +128,8 @@ router.get("/anime/detail/:animeId", async (req, res) => {
       duration: d.duration,
       aired: d.aired,
       studios: d.studios,
-      synopsis: d.synopsis,
-      genreList: d.genreList || [],
+      synopsis,
+      genreList,
       episodeList,
       recommended,
     });
