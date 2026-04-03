@@ -92,4 +92,16 @@ router.get("/anime/detail/:slug", asyncHandler(async (req, res) => {
   res.json(data);
 }));
 
+router.get("/anime/episode/:episodeId", asyncHandler(async (req, res) => {
+  const { episodeId } = req.params;
+  const data = await fetchFromApi(`/episode/${encodeURIComponent(episodeId)}`);
+  res.json(data);
+}));
+
+router.get("/anime/server/:serverId", asyncHandler(async (req, res) => {
+  const { serverId } = req.params;
+  const data = await fetchFromApi(`/server/${encodeURIComponent(serverId)}`);
+  res.json(data);
+}));
+
 export default router;

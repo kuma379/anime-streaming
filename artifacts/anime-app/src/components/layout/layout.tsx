@@ -1,15 +1,18 @@
 import { Navbar } from "./navbar";
 import { ReactNode } from "react";
+import { AdDisplay } from "@/components/ads/ad-display";
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="relative flex min-h-screen flex-col bg-background">
+      <AdDisplay position="top" />
       <Navbar />
       <main className="flex-1">{children}</main>
-      <footer className="py-8 border-t border-border mt-auto">
+      <AdDisplay position="bottom" />
+      <footer className="py-6 border-t border-border/40 mt-auto">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p className="font-display font-bold text-lg mb-2 text-foreground">AniStream</p>
-          <p>Powered by Samehadaku Data. Built for anime fans.</p>
+          <p className="font-display font-bold text-base mb-1 text-foreground">AnimeStreaming</p>
+          <p>Powered by AnimeStreaming</p>
         </div>
       </footer>
     </div>

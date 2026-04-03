@@ -15,6 +15,8 @@ import GenresPage from "@/pages/genres";
 import GenreDetailPage from "@/pages/genre-detail";
 import BatchPage from "@/pages/batch";
 import AnimeDetailPage from "@/pages/anime-detail";
+import WatchPage from "@/pages/watch";
+import AdminPage from "@/pages/admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,22 +29,28 @@ const queryClient = new QueryClient({
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/search" component={SearchPage} />
-        <Route path="/ongoing" component={OngoingPage} />
-        <Route path="/completed" component={CompletedPage} />
-        <Route path="/popular" component={PopularPage} />
-        <Route path="/movies" component={MoviesPage} />
-        <Route path="/schedule" component={SchedulePage} />
-        <Route path="/genres" component={GenresPage} />
-        <Route path="/genres/:genre" component={GenreDetailPage} />
-        <Route path="/batch" component={BatchPage} />
-        <Route path="/anime/:slug" component={AnimeDetailPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/admin" component={AdminPage} />
+      <Route>
+        <Layout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/search" component={SearchPage} />
+            <Route path="/ongoing" component={OngoingPage} />
+            <Route path="/completed" component={CompletedPage} />
+            <Route path="/popular" component={PopularPage} />
+            <Route path="/movies" component={MoviesPage} />
+            <Route path="/schedule" component={SchedulePage} />
+            <Route path="/genres" component={GenresPage} />
+            <Route path="/genres/:genre" component={GenreDetailPage} />
+            <Route path="/batch" component={BatchPage} />
+            <Route path="/anime/:slug" component={AnimeDetailPage} />
+            <Route path="/watch/:episodeId" component={WatchPage} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 
