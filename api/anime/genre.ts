@@ -10,7 +10,7 @@ const api = axios.create({
     Referer: "https://www.sankavollerei.com/",
     Origin: "https://www.sankavollerei.com",
   },
-  timeout: 10000,
+  timeout: 8000,
   decompress: true,
 });
 
@@ -60,21 +60,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const items = await fetchPage(genre, page);
       return res.status(200).json(items.map(mapEntry));
-    } catch (err) {
+    } catch {
       return res.status(500).json({ error: "Gagal memuat genre" });
     }
   }
 
-  // Search mode
+  // Search mode - fetch key genres in parallel with reasonable page depth
   if (query) {
     res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=180");
-    const GENRES = ["shounen", "action", "adventure", "fantasy", "supernatural", "comedy", "romance", "drama", "sci-fi", "mystery", "sports", "mecha", "historical", "magic", "super-power", "martial-arts", "psychological", "school", "slice-of-life", "military", "horror", "thriller", "vampire", "harem", "ecchi", "game"];
-    const MAX_PAGES = 15;
+    
+    // Key genres for popular anime coverage
+    const SEARCH_PLAN = [
+      { genre: "shounen", pages: 30 },    // One Piece, Bleach, Naruto, Jujutsu etc.
+      { genre: "action", pages: 20 },     // Kimetsu, AoT, etc.
+      { genre: "adventure", pages: 15 },
+      { genre: "fantasy", pages: 12 },
+      { genre: "supernatural", pages: 10 },
+      { genre: "comedy", pages: 10 },
+      { genre: "romance", pages: 10 },
+      { genre: "drama", pages: 8 },
+      { genre: "magic", pages: 8 },
+      { genre: "sci-fi", pages: 8 },
+      { genre: "school", pages: 8 },
+      { genre: "mystery", pages: 6 },
+      { genre: "horror", pages: 5 },
+      { genre: "sports", pages: 8 },
+      { genre: "mecha", pages: 6 },
+      { genre: "historical", pages: 6 },
+      { genre: "slice-of-life", pages: 6 },
+      { genre: "psychological", pages: 5 },
+      { genre: "super-power", pages: 8 },
+      { genre: "martial-arts", pages: 6 },
+      { genre: "military", pages: 5 },
+      { genre: "vampire", pages: 4 },
+      { genre: "harem", pages: 6 },
+    ];
 
     const requests: Promise<AnimeEntry[]>[] = [];
-    for (const g of GENRES) {
-      for (let p = 1; p <= MAX_PAGES; p++) {
-        requests.push(fetchPage(g, p));
+    for (const plan of SEARCH_PLAN) {
+      for (let p = 1; p <= plan.pages; p++) {
+        requests.push(fetchPage(plan.genre, p));
       }
     }
 
