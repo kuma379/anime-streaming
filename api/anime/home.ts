@@ -4,19 +4,21 @@ import axios from "axios";
 const api = axios.create({
   baseURL: "https://www.sankavollerei.com",
   headers: {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     Accept: "application/json, text/html, */*",
     "Accept-Encoding": "gzip, deflate, br",
     "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
-    Referer: "https://www.sankavollerei.com",
+    Referer: "https://www.sankavollerei.com/",
+    Origin: "https://www.sankavollerei.com",
   },
-  timeout: 20000,
+  timeout: 25000,
   decompress: true,
 });
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=120");
   if (_req.method === "OPTIONS") return res.status(200).end();
 
   try {
@@ -35,6 +37,6 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     return res.status(200).json(mapped);
   } catch (err) {
     console.error("home error:", err);
-    return res.status(500).json({ error: "Failed to fetch home" });
+    return res.status(500).json({ error: "Gagal mengambil data. Coba lagi nanti." });
   }
 }
