@@ -5,11 +5,12 @@ import { type AnimeItem } from "@/lib/api";
 interface AnimeCardProps {
   anime: AnimeItem;
   variant?: "default" | "small";
+  linkToAnime?: boolean;
 }
 
-export function AnimeCard({ anime, variant = "default" }: AnimeCardProps) {
+export function AnimeCard({ anime, variant = "default", linkToAnime = false }: AnimeCardProps) {
   const href = anime.slug
-    ? `/tonton/${anime.slug}`
+    ? (linkToAnime ? `/anime/${anime.slug}` : `/tonton/${anime.slug}`)
     : "#";
 
   if (variant === "small") {
