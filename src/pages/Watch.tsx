@@ -6,25 +6,66 @@ import {
 } from "lucide-react";
 import { fetchEpisode, fetchServer, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
 import { AdBanner } from "@/components/AdBanner";
+
 interface ServerPref { defaultQuality: string; preferredServer: string; autoPlay: boolean; }
 function getServerPref(): ServerPref {
   try { const raw = localStorage.getItem("anistream_server_pref"); if (raw) return { defaultQuality: "720p", preferredServer: "vidhide", autoPlay: true, ...JSON.parse(raw) }; } catch { }
   return { defaultQuality: "720p", preferredServer: "vidhide", autoPlay: true };
 }
 
-interface ActiveStream { url: string; key: string; }
+interface ActiveStream { url: string; key: string; type?: "iframe" | "video" | "gofile"; }
 
-function isEmbeddableServer(name: string): boolean {
-  const embedServers = ["vidhide", "filedon", "filemoon", "streamtape", "doodstream", "mp4upload", "mega"];
-  return embedServers.some((s) => name.toLowerCase().includes(s));
+function isGoFileUrl(url: string): boolean {
+  return url.includes("gofile.io");
 }
 
-function isBlockedUrl(url: string): boolean {
-  const blocked = ["desustream.info", "desuarchive.org", "desustorage.org"];
-  return blocked.some((b) => url.includes(b));
+function extractGoFileId(url: string): string | null {
+  const match = url.match(/gofile\.io\/(?:d|download)\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
 }
 
-function VideoPlayer({ stream }: { stream: ActiveStream | null }) {
+function isDirectVideo(url: string): boolean {
+  return /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(url);
+}
+
+function needsProxy(url: string): boolean {
+  const proxyHosts = ["desustream.info", "desuarchive.org", "desustorage.org", "updesu", "zupdesu"];
+  return proxyHosts.some((h) => url.includes(h));
+}
+
+function buildProxyUrl(url: string): string {
+  return `/api/anime/proxy?url=${encodeURIComponent(url)}`;
+}
+
+async function resolveGoFileUrl(contentId: string): Promise<string> {
+  const res = await fetch(`/api/anime/gofile?id=${encodeURIComponent(contentId)}`);
+  if (!res.ok) throw new Error("GoFile fetch failed");
+  const data = await res.json();
+  if (!data.url) throw new Error("No GoFile URL");
+  return data.url;
+}
+
+function VideoPlayer({ stream, onRetry }: { stream: ActiveStream | null; onRetry?: () => void }) {
+  const [goFileUrl, setGoFileUrl] = useState<string | null>(null);
+  const [goFileLoading, setGoFileLoading] = useState(false);
+  const [goFileError, setGoFileError] = useState(false);
+
+  useEffect(() => {
+    setGoFileUrl(null);
+    setGoFileError(false);
+    if (!stream) return;
+    if (!isGoFileUrl(stream.url)) return;
+
+    const id = extractGoFileId(stream.url);
+    if (!id) { setGoFileError(true); return; }
+
+    setGoFileLoading(true);
+    resolveGoFileUrl(id)
+      .then(setGoFileUrl)
+      .catch(() => setGoFileError(true))
+      .finally(() => setGoFileLoading(false));
+  }, [stream?.url]);
+
   if (!stream) {
     return (
       <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center border border-purple-900/20">
@@ -36,9 +77,42 @@ function VideoPlayer({ stream }: { stream: ActiveStream | null }) {
     );
   }
 
-  const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(stream.url);
+  if (isGoFileUrl(stream.url)) {
+    if (goFileLoading) {
+      return (
+        <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-3" />
+            <p className="text-gray-400 text-sm">Memuat GoFile...</p>
+          </div>
+        </div>
+      );
+    }
+    if (goFileError || !goFileUrl) {
+      return (
+        <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center border border-purple-900/20">
+          <div className="text-center px-6">
+            <AlertCircle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
+            <p className="text-white font-semibold mb-1">GoFile tidak bisa dimuat otomatis</p>
+            <a href={stream.url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-3 text-xs text-blue-400 hover:text-blue-300 border border-blue-800 rounded-lg px-3 py-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Buka GoFile di tab baru
+            </a>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
+        <video key={goFileUrl} controls autoPlay playsInline className="w-full aspect-video" src={goFileUrl}>
+          Browser tidak mendukung video HTML5.
+        </video>
+      </div>
+    );
+  }
 
-  if (isDirect) {
+  if (isDirectVideo(stream.url)) {
     return (
       <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
         <video key={stream.url} controls autoPlay playsInline className="w-full aspect-video" src={stream.url}>
@@ -48,32 +122,13 @@ function VideoPlayer({ stream }: { stream: ActiveStream | null }) {
     );
   }
 
-  if (isBlockedUrl(stream.url)) {
-    return (
-      <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center border border-purple-900/20">
-        <div className="text-center px-6">
-          <AlertCircle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
-          <p className="text-white font-semibold mb-1">Server ini tidak mendukung embed</p>
-          <p className="text-gray-400 text-sm mb-4">Pilih server lain yang bertanda <span className="text-green-400 font-medium">embed</span> di bawah.</p>
-          <a
-            href={stream.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors border border-gray-700 rounded-lg px-3 py-1.5"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Buka di tab baru sebagai alternatif
-          </a>
-        </div>
-      </div>
-    );
-  }
+  const embedSrc = needsProxy(stream.url) ? buildProxyUrl(stream.url) : stream.url;
 
   return (
-    <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
+    <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30 relative">
       <iframe
-        key={stream.url}
-        src={stream.url}
+        key={embedSrc}
+        src={embedSrc}
         className="w-full aspect-video"
         allowFullScreen
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
@@ -82,6 +137,13 @@ function VideoPlayer({ stream }: { stream: ActiveStream | null }) {
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-pointer-lock"
         style={{ border: "none", display: "block" }}
       />
+      <div className="absolute bottom-2 right-2 opacity-60 hover:opacity-100 transition-opacity">
+        <a href={stream.url} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-gray-300 bg-black/60 border border-white/10 rounded px-2 py-1"
+        >
+          <ExternalLink className="w-3 h-3" /> Buka di tab baru
+        </a>
+      </div>
     </div>
   );
 }
@@ -107,18 +169,24 @@ function groupByQuality(servers: EpisodeServer[]): GroupedServers[] {
   return ORDER.filter((q) => map[q]).map((q) => ({ quality: q, servers: map[q] }));
 }
 
+function isEmbeddableServer(name: string): boolean {
+  const embedServers = [
+    "vidhide", "filedon", "filemoon", "streamtape", "doodstream",
+    "mp4upload", "mega", "updesu", "ondesu", "desu", "gofile",
+    "server", "hd", "mirror", "nonton"
+  ];
+  return embedServers.some((s) => name.toLowerCase().includes(s));
+}
+
 function findBestServer(groups: GroupedServers[], pref: ReturnType<typeof getServerPref>): EpisodeServer | null {
   const flatAll = groups.flatMap((g) => g.servers);
-  const flatEmbed = flatAll.filter((s) => isEmbeddableServer(s.name));
   const prefGroup = groups.find((g) => g.quality === pref.defaultQuality) || groups[0];
   if (!prefGroup) return null;
-  const embedInPrefGroup = prefGroup.servers.filter((s) => isEmbeddableServer(s.name));
   const byName = (list: EpisodeServer[]) =>
     list.find((s) => s.name.toLowerCase().includes(pref.preferredServer.toLowerCase()));
   return (
-    byName(embedInPrefGroup) || embedInPrefGroup[0] ||
-    byName(flatEmbed) || flatEmbed[0] ||
-    byName(prefGroup.servers) || prefGroup.servers[0] || null
+    byName(prefGroup.servers) || prefGroup.servers[0] ||
+    byName(flatAll) || flatAll[0] || null
   );
 }
 
@@ -318,7 +386,7 @@ export default function Watch() {
                               } disabled:opacity-60 disabled:cursor-not-allowed`}
                             >
                               <Icon className="w-3.5 h-3.5" />
-                              Server {i + 1}
+                              {server.name || `Server ${i + 1}`}
                               {serverLoading && isActive && <Loader2 className="w-3 h-3 animate-spin" />}
                             </button>
                           );
