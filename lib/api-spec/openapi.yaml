@@ -1,0 +1,275 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: anime
+    description: Anime operations proxied from Samehadaku
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /anime/home:
+    get:
+      operationId: animeHome
+      tags: [anime]
+      summary: Get anime home
+      description: Returns anime home page data from Samehadaku
+      responses:
+        "200":
+          description: Home data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/recent:
+    get:
+      operationId: animeRecent
+      tags: [anime]
+      summary: Get recent anime episodes
+      description: Returns the most recently released anime episodes
+      responses:
+        "200":
+          description: Recent episodes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/search:
+    get:
+      operationId: animeSearch
+      tags: [anime]
+      summary: Search anime
+      description: Search for anime by query string
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/ongoing:
+    get:
+      operationId: animeOngoing
+      tags: [anime]
+      summary: Get ongoing anime
+      description: Returns list of currently airing anime
+      responses:
+        "200":
+          description: Ongoing anime list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/completed:
+    get:
+      operationId: animeCompleted
+      tags: [anime]
+      summary: Get completed anime
+      description: Returns list of completed anime
+      responses:
+        "200":
+          description: Completed anime list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/popular:
+    get:
+      operationId: animePopular
+      tags: [anime]
+      summary: Get popular anime
+      description: Returns list of popular anime
+      responses:
+        "200":
+          description: Popular anime list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/movies:
+    get:
+      operationId: animeMovies
+      tags: [anime]
+      summary: Get anime movies
+      description: Returns list of anime movies
+      responses:
+        "200":
+          description: Anime movies list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/schedule:
+    get:
+      operationId: animeSchedule
+      tags: [anime]
+      summary: Get anime schedule
+      description: Returns the anime airing schedule
+      responses:
+        "200":
+          description: Anime schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/genres:
+    get:
+      operationId: animeGenres
+      tags: [anime]
+      summary: Get all genres
+      description: Returns list of all available anime genres
+      responses:
+        "200":
+          description: Genres list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/genres/{genre}:
+    get:
+      operationId: animeByGenre
+      tags: [anime]
+      summary: Get anime by genre
+      description: Returns list of anime filtered by genre
+      parameters:
+        - name: genre
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Genre slug (e.g. action, romance)
+      responses:
+        "200":
+          description: Anime list by genre
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/batch:
+    get:
+      operationId: animeBatch
+      tags: [anime]
+      summary: Get batch downloads
+      description: Returns list of anime available for batch download
+      responses:
+        "200":
+          description: Batch download list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+  /anime/detail/{slug}:
+    get:
+      operationId: animeDetail
+      tags: [anime]
+      summary: Get anime detail
+      description: Returns detailed information about a specific anime
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Anime slug (e.g. one-piece)
+      responses:
+        "200":
+          description: Anime detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnimeResponse"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    AnimeResponse:
+      type: object
+      description: Response data from the Samehadaku upstream API
+      additionalProperties: true
+
+    UpstreamErrorBody:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+  responses:
+    UpstreamError:
+      description: Failed to fetch from upstream API
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpstreamErrorBody"
