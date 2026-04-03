@@ -1,7 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "pnpm install --frozen-lockfile && VERCEL=1 pnpm --filter @workspace/anime-app run build",
-  "outputDirectory": "artifacts/anime-app/dist",
+  "outputDirectory": "public",
   "rewrites": [
     {
       "source": "/((?!api/).*)",

@@ -9,6 +9,40 @@ interface Props {
   params: { episodeId: string };
 }
 
+function isDirectVideo(url: string) {
+  return /\.(mp4|mkv|webm|m3u8|ts)(\?.*)?$/i.test(url);
+}
+
+function VideoPlayer({ url, title }: { url: string; title: string }) {
+  if (isDirectVideo(url)) {
+    return (
+      <video
+        key={url}
+        src={url}
+        controls
+        autoPlay
+        className="w-full h-full"
+        style={{ background: "#000" }}
+        title={title}
+        controlsList="nodownload"
+      >
+        Browser Anda tidak mendukung video.
+      </video>
+    );
+  }
+  return (
+    <iframe
+      key={url}
+      src={url}
+      className="w-full h-full"
+      allowFullScreen
+      allow="autoplay; fullscreen; picture-in-picture"
+      frameBorder="0"
+      title={title}
+    />
+  );
+}
+
 function useEpisode(episodeId: string) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +54,9 @@ function useEpisode(episodeId: string) {
     setIsLoading(true);
     setIsError(false);
     try {
-      const res = await fetch(`${BASE_URL}/api/anime/episode/${encodeURIComponent(episodeId)}`);
+      const res = await fetch(
+        `${BASE_URL}/api/anime/episode/${encodeURIComponent(episodeId)}`
+      );
       if (!res.ok) throw new Error("Failed");
       const json = await res.json();
       setData(json);
@@ -31,7 +67,9 @@ function useEpisode(episodeId: string) {
     }
   };
 
-  useState(() => { load(); });
+  useState(() => {
+    load();
+  });
 
   return { data, isLoading, isError, refetch: load };
 }
@@ -47,13 +85,20 @@ export default function WatchPage({ params }: Props) {
   const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const handleServerSelect = async (serverId: string) => {
+    if (selectedServerId === serverId) return;
     setSelectedServerId(serverId);
     setServerLoading(true);
     setStreamUrl(null);
     try {
-      const res = await fetch(`${BASE_URL}/api/anime/server/${encodeURIComponent(serverId)}`);
+      const res = await fetch(
+        `${BASE_URL}/api/anime/server/${encodeURIComponent(serverId)}`
+      );
       const json = await res.json();
-      const url = json?.data?.url || json?.data?.streamingUrl || json?.data?.iframe || null;
+      const url =
+        json?.data?.url ||
+        json?.data?.streamingUrl ||
+        json?.data?.iframe ||
+        null;
       setStreamUrl(url);
     } catch {
       setStreamUrl(null);
@@ -62,19 +107,40 @@ export default function WatchPage({ params }: Props) {
     }
   };
 
-  const animeSlug = episode?.animeId || episodeId.replace(/-episode-\d+$/, "");
+  const animeSlug =
+    episode?.animeId || episodeId.replace(/-episode-\d+.*$/, "");
   const defaultUrl = episode?.defaultStreamingUrl || null;
   const activeUrl = streamUrl || defaultUrl;
 
-  // Flatten all servers across all qualities into a numbered list
+  // Flatten all servers with quality labels, skip empty server lists
   const allServers: { serverId: string; quality: string; label: string }[] = [];
   if (episode?.server?.qualities) {
     let count = 1;
     for (const q of episode.server.qualities) {
-      if (!q.serverList?.length) continue;
+      if (!q.serverList?.length || q.title === "unknown") continue;
       for (const s of q.serverList) {
-        allServers.push({ serverId: s.serverId, quality: q.title, label: `Server ${count}` });
+        allServers.push({
+          serverId: s.serverId,
+          quality: q.title,
+          label: `Server ${count}`,
+        });
         count++;
+      }
+    }
+
+    // If only "unknown" quality servers exist, include them too
+    if (allServers.length === 0) {
+      let count = 1;
+      for (const q of episode.server.qualities) {
+        if (!q.serverList?.length) continue;
+        for (const s of q.serverList) {
+          allServers.push({
+            serverId: s.serverId,
+            quality: q.title === "unknown" ? "" : q.title,
+            label: `Server ${count}`,
+          });
+          count++;
+        }
       }
     }
   }
@@ -85,53 +151,76 @@ export default function WatchPage({ params }: Props) {
         <Skeleton className="w-full aspect-video rounded-xl" />
         <Skeleton className="h-6 w-2/3" />
         <div className="flex gap-2 flex-wrap">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-9 w-24 rounded-full" />)}
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-9 w-24 rounded-full" />
+          ))}
         </div>
       </div>
     );
   }
 
   if (isError || !episode) {
-    return <ErrorState title="Episode tidak ditemukan" message="Tidak dapat memuat episode ini." onRetry={refetch} />;
+    return (
+      <ErrorState
+        title="Episode tidak ditemukan"
+        message="Tidak dapat memuat episode ini."
+        onRetry={refetch}
+      />
+    );
   }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+      {/* Navigation */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Link href={`/anime/${animeSlug}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+        <Link
+          href={`/anime/${animeSlug}`}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
+        >
           <ChevronLeft className="w-4 h-4" /> Kembali ke Anime
         </Link>
         {episode.hasPrevEpisode && episode.prevEpisode && (
           <Link href={`/watch/${episode.prevEpisode}`}>
-            <Button variant="outline" size="sm" className="gap-1 rounded-full">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 rounded-full"
+              onClick={() => { setStreamUrl(null); setSelectedServerId(null); }}
+            >
               <ChevronLeft className="w-4 h-4" /> Sebelumnya
             </Button>
           </Link>
         )}
         {episode.hasNextEpisode && episode.nextEpisode && (
           <Link href={`/watch/${episode.nextEpisode}`}>
-            <Button variant="outline" size="sm" className="gap-1 rounded-full">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 rounded-full"
+              onClick={() => { setStreamUrl(null); setSelectedServerId(null); }}
+            >
               Selanjutnya <ChevronRight className="w-4 h-4" />
             </Button>
           </Link>
         )}
       </div>
 
+      {/* Title */}
       <div>
-        <h1 className="text-xl md:text-2xl font-display font-black leading-tight">{episode.title}</h1>
-        {episode.releasedOn && <p className="text-sm text-muted-foreground mt-1">{episode.releasedOn}</p>}
+        <h1 className="text-xl md:text-2xl font-display font-black leading-tight">
+          {episode.title}
+        </h1>
+        {episode.releasedOn && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {episode.releasedOn}
+          </p>
+        )}
       </div>
 
+      {/* Video Player */}
       <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl shadow-black/60 border border-border/20">
         {activeUrl ? (
-          <iframe
-            src={activeUrl}
-            className="w-full h-full"
-            allowFullScreen
-            allow="autoplay; fullscreen; picture-in-picture"
-            frameBorder="0"
-            title={episode.title}
-          />
+          <VideoPlayer url={activeUrl} title={episode.title} />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <Monitor className="w-14 h-14 opacity-20" />
@@ -145,6 +234,7 @@ export default function WatchPage({ params }: Props) {
         )}
       </div>
 
+      {/* Server Selection */}
       {allServers.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -162,10 +252,19 @@ export default function WatchPage({ params }: Props) {
                 }`}
               >
                 {server.label}
-                <span className="ml-1.5 text-[10px] opacity-60 uppercase">{server.quality}</span>
+                {server.quality && (
+                  <span className="ml-1.5 text-[10px] opacity-60 uppercase">
+                    {server.quality}
+                  </span>
+                )}
               </button>
             ))}
           </div>
+          {activeUrl && isDirectVideo(activeUrl) && (
+            <p className="text-xs text-muted-foreground/60">
+              Jika video tidak muncul, coba server lain.
+            </p>
+          )}
         </div>
       )}
     </div>
