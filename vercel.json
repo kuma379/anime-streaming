@@ -13,6 +13,7 @@
     { "source": "/api/anime/winbu/server", "destination": "/api/anime/winbu/server" },
     { "source": "/api/anime/server/:id", "destination": "/api/anime/server/[id]" },
     { "source": "/api/anime/episode/:slug", "destination": "/api/anime/episode/[slug]" },
+    { "source": "/api/anime/detail/:id", "destination": "/api/anime/detail/[id]" },
     { "source": "/api/anime/schedule", "destination": "/api/anime/schedule" },
     { "source": "/api/anime/home", "destination": "/api/anime/home" },
     { "source": "/(.*)", "destination": "/index.html" }
