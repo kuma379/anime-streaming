@@ -18,6 +18,10 @@
       "destination": "/api/anime/gofile"
     },
     {
+      "source": "/api/anime/genre",
+      "destination": "/api/anime/genre"
+    },
+    {
       "source": "/api/anime/winbu/server",
       "destination": "/api/anime/winbu/server"
     },
