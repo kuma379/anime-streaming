@@ -302,7 +302,6 @@ export default function Watch() {
                         {group.servers.map((server, i) => {
                           const Icon = SERVER_ICONS[i % SERVER_ICONS.length];
                           const isActive = activeServerId === server.serverId;
-                          const canEmbed = isEmbeddableServer(server.name);
                           return (
                             <button
                               key={server.serverId}
@@ -315,10 +314,7 @@ export default function Watch() {
                               } disabled:opacity-60 disabled:cursor-not-allowed`}
                             >
                               <Icon className="w-3.5 h-3.5" />
-                              {server.name}
-                              {canEmbed && (
-                                <span className="text-[10px] text-green-400 font-normal">embed</span>
-                              )}
+                              Server {i + 1}
                               {serverLoading && isActive && <Loader2 className="w-3 h-3 animate-spin" />}
                             </button>
                           );
