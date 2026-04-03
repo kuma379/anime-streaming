@@ -1,52 +1,14 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist/public",
-  "installCommand": "npm install",
-  "framework": null,
-  "functions": {
-    "api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
+  "version": 2,
+  "buildCommand": "pnpm install && VERCEL=1 pnpm --filter @workspace/anime-app run build",
+  "outputDirectory": "artifacts/anime-app/dist",
   "rewrites": [
     {
-      "source": "/api/anime/proxy",
+      "source": "/api/anime/:path*",
       "destination": "/api/anime/proxy"
     },
     {
-      "source": "/api/anime/gofile",
-      "destination": "/api/anime/gofile"
-    },
-    {
-      "source": "/api/anime/genre",
-      "destination": "/api/anime/genre"
-    },
-    {
-      "source": "/api/anime/winbu/server",
-      "destination": "/api/anime/winbu/server"
-    },
-    {
-      "source": "/api/anime/server/:id",
-      "destination": "/api/anime/server/[id]"
-    },
-    {
-      "source": "/api/anime/episode/:slug",
-      "destination": "/api/anime/episode/[slug]"
-    },
-    {
-      "source": "/api/anime/detail/:id",
-      "destination": "/api/anime/detail/[id]"
-    },
-    {
-      "source": "/api/anime/schedule",
-      "destination": "/api/anime/schedule"
-    },
-    {
-      "source": "/api/anime/home",
-      "destination": "/api/anime/home"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
