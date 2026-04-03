@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, ArrowLeft, Image, Link2, Layout, LogOut, Check } from "lucide-react";
+import { Shield, Plus, Trash2, ArrowLeft, Image, Link2, Layout, LogOut, Check, Code } from "lucide-react";
 import { getAds, saveAd, deleteAd, type Ad } from "@/lib/store";
 
 const ADMIN_PASS = "cipung";
@@ -68,20 +68,33 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
 }
 
 function AddAdForm({ onAdded }: { onAdded: () => void }) {
+  const [adType, setAdType] = useState<"image" | "script">("image");
   const [title, setTitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [linkUrl, setLinkUrl] = useState("https://");
+  const [scriptCode, setScriptCode] = useState("");
   const [position, setPosition] = useState<Ad["position"]>("top");
   const [saved, setSaved] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !linkUrl) return;
-    saveAd({ title, imageUrl, linkUrl, position });
+    if (!title) return;
+    if (adType === "image" && !linkUrl) return;
+    if (adType === "script" && !scriptCode) return;
+
+    saveAd({
+      title,
+      imageUrl: adType === "image" ? imageUrl : "",
+      linkUrl: adType === "image" ? linkUrl : "#",
+      scriptCode: adType === "script" ? scriptCode : undefined,
+      type: adType,
+      position,
+    });
     dispatchAdsUpdate();
     setTitle("");
     setImageUrl("");
     setLinkUrl("https://");
+    setScriptCode("");
     setPosition("top");
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -94,6 +107,23 @@ function AddAdForm({ onAdded }: { onAdded: () => void }) {
         <Plus className="w-4 h-4 text-purple-400" />
         Tambah Iklan Baru
       </h2>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setAdType("image")}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${adType === "image" ? "bg-purple-600 text-white border-purple-500" : "bg-[hsl(222,47%,12%)] text-gray-400 border-purple-900/20 hover:text-white"}`}
+        >
+          <Image className="w-3.5 h-3.5" /> Iklan Gambar
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdType("script")}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${adType === "script" ? "bg-purple-600 text-white border-purple-500" : "bg-[hsl(222,47%,12%)] text-gray-400 border-purple-900/20 hover:text-white"}`}
+        >
+          <Code className="w-3.5 h-3.5" /> Iklan Script
+        </button>
+      </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
@@ -122,31 +152,49 @@ function AddAdForm({ onAdded }: { onAdded: () => void }) {
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-gray-400 mb-1.5 flex items-center gap-1">
-          <Image className="w-3 h-3" /> URL Gambar Iklan
-        </label>
-        <input
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://contoh.com/gambar-iklan.jpg"
-          className="w-full bg-[hsl(222,47%,12%)] border border-purple-900/30 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 transition-colors"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-gray-400 mb-1.5 flex items-center gap-1">
-          <Link2 className="w-3 h-3" /> URL Tujuan Iklan <span className="text-red-400">*</span>
-        </label>
-        <input
-          value={linkUrl}
-          onChange={(e) => setLinkUrl(e.target.value)}
-          placeholder="https://website-pengiklan.com"
-          required
-          type="url"
-          className="w-full bg-[hsl(222,47%,12%)] border border-purple-900/30 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 transition-colors"
-        />
-      </div>
+      {adType === "image" ? (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 flex items-center gap-1">
+              <Image className="w-3 h-3" /> URL Gambar Iklan
+            </label>
+            <input
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://contoh.com/gambar-iklan.jpg"
+              className="w-full bg-[hsl(222,47%,12%)] border border-purple-900/30 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 flex items-center gap-1">
+              <Link2 className="w-3 h-3" /> URL Tujuan Iklan <span className="text-red-400">*</span>
+            </label>
+            <input
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://website-pengiklan.com"
+              required={adType === "image"}
+              type="url"
+              className="w-full bg-[hsl(222,47%,12%)] border border-purple-900/30 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+        </>
+      ) : (
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1.5 flex items-center gap-1">
+            <Code className="w-3 h-3" /> Kode Script Iklan <span className="text-red-400">*</span>
+          </label>
+          <textarea
+            value={scriptCode}
+            onChange={(e) => setScriptCode(e.target.value)}
+            placeholder={'<script src="https://..."></script>\natau kode banner iklan lainnya'}
+            required={adType === "script"}
+            rows={4}
+            className="w-full bg-[hsl(222,47%,12%)] border border-purple-900/30 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-500 transition-colors font-mono"
+          />
+          <p className="text-xs text-gray-500 mt-1">Tempel script tag dari jaringan iklan Anda di sini.</p>
+        </div>
+      )}
 
       <button
         type="submit"
@@ -185,7 +233,11 @@ function AdList({ ads, onDelete }: { ads: Ad[]; onDelete: (id: string) => void }
       <div className="divide-y divide-purple-900/20">
         {ads.map((ad) => (
           <div key={ad.id} className="flex items-center gap-4 px-6 py-4">
-            {ad.imageUrl ? (
+            {ad.type === "script" ? (
+              <div className="w-16 h-12 rounded-lg bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                <Code className="w-5 h-5 text-purple-400" />
+              </div>
+            ) : ad.imageUrl ? (
               <img
                 src={ad.imageUrl}
                 alt={ad.title}
@@ -198,10 +250,17 @@ function AdList({ ads, onDelete }: { ads: Ad[]; onDelete: (id: string) => void }
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{ad.title}</p>
-              <p className="text-xs text-gray-400 truncate mt-0.5">{ad.linkUrl}</p>
-              <span className="inline-block mt-1 text-xs bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded-full">
-                Posisi: {positionLabel[ad.position]}
-              </span>
+              <p className="text-xs text-gray-400 truncate mt-0.5">
+                {ad.type === "script" ? "Script iklan" : ad.linkUrl}
+              </p>
+              <div className="flex gap-1.5 mt-1">
+                <span className="inline-block text-xs bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded-full">
+                  Posisi: {positionLabel[ad.position]}
+                </span>
+                <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${ad.type === "script" ? "bg-blue-900/40 text-blue-300" : "bg-green-900/40 text-green-300"}`}>
+                  {ad.type === "script" ? "Script" : "Gambar"}
+                </span>
+              </div>
             </div>
             <button
               onClick={() => onDelete(ad.id)}
