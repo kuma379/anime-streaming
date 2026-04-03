@@ -3,6 +3,8 @@ export interface Ad {
   title: string;
   imageUrl: string;
   linkUrl: string;
+  scriptCode?: string;
+  type?: "image" | "script";
   position: "top" | "sidebar" | "bottom";
   createdAt: number;
 }
