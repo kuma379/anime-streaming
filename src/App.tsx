@@ -5,6 +5,7 @@ import Home from "@/pages/Home";
 import Schedule from "@/pages/Schedule";
 import Watch from "@/pages/Watch";
 import Anime from "@/pages/Anime";
+import Browse from "@/pages/Browse";
 import Admin from "@/pages/Admin";
 import NotFound from "@/pages/not-found";
 
@@ -27,6 +28,8 @@ function Router() {
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/jadwal" component={Schedule} />
+            <Route path="/cari" component={Browse} />
+            <Route path="/genre" component={Browse} />
             <Route path="/anime/:animeId" component={Anime} />
             <Route path="/tonton/:slug" component={Watch} />
             <Route component={NotFound} />
