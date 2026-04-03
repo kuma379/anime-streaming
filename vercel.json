@@ -3,6 +3,11 @@
   "outputDirectory": "dist/public",
   "installCommand": "npm install",
   "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/api/anime/proxy", "destination": "/api/anime/proxy" },
     { "source": "/api/anime/winbu/server", "destination": "/api/anime/winbu/server" },
