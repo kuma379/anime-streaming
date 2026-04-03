@@ -2,16 +2,28 @@ import { useEffect, useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import {
   Play, ArrowLeft, ChevronRight, ChevronLeft, Monitor,
-  AlertCircle, RefreshCw, Loader2, Zap, Signal, Wifi
+  AlertCircle, RefreshCw, Loader2, Zap, Signal, Wifi, ExternalLink
 } from "lucide-react";
 import { fetchEpisode, fetchServer, type EpisodeDetail, type EpisodeServer } from "@/lib/api";
 import { AdBanner } from "@/components/AdBanner";
 import { getServerPref } from "./Admin";
 
-interface ActiveStream { url: string; key: string; }
+interface ActiveStream { url: string; key: string; embeddable: boolean; }
 
-function VideoPlayer({ streamUrl }: { streamUrl: string }) {
-  if (!streamUrl) {
+function isEmbeddableUrl(url: string): boolean {
+  if (!url) return false;
+  if (/\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(url)) return true;
+  const blocked = ["desustream.info", "desuarchive.org", "desustorage.org"];
+  return !blocked.some((b) => url.includes(b));
+}
+
+function isEmbeddableServer(name: string): boolean {
+  const embedServers = ["vidhide", "filedon", "filemoon", "streamtape", "doodstream", "mp4upload", "mega"];
+  return embedServers.some((s) => name.toLowerCase().includes(s));
+}
+
+function VideoPlayer({ stream }: { stream: ActiveStream | null }) {
+  if (!stream) {
     return (
       <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
         <div className="text-center">
@@ -21,27 +33,50 @@ function VideoPlayer({ streamUrl }: { streamUrl: string }) {
       </div>
     );
   }
-  const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(streamUrl);
+
+  if (!stream.embeddable) {
+    return (
+      <div className="w-full aspect-video bg-[hsl(222,47%,8%)] rounded-xl flex items-center justify-center">
+        <div className="text-center px-6">
+          <ExternalLink className="w-12 h-12 text-purple-400 mx-auto mb-4" />
+          <p className="text-white font-semibold mb-2">Server ini tidak dapat ditampilkan di sini</p>
+          <p className="text-gray-400 text-sm mb-5">Server ini membatasi embedding. Klik tombol di bawah untuk menonton di tab baru.</p>
+          <a
+            href={stream.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full font-medium transition-colors shadow-lg shadow-purple-600/30"
+          >
+            <Play className="w-4 h-4" />
+            Tonton di Tab Baru
+          </a>
+          <p className="text-xs text-gray-600 mt-3">Gunakan server vidhide atau filedon untuk embed langsung</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isDirect = /\.(mp4|mkv|webm|m3u8)(\?|$)/i.test(stream.url);
   if (isDirect) {
     return (
       <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
-        <video key={streamUrl} controls autoPlay playsInline className="w-full aspect-video" src={streamUrl}>
+        <video key={stream.url} controls autoPlay playsInline className="w-full aspect-video" src={stream.url}>
           Browser tidak mendukung video HTML5.
         </video>
       </div>
     );
   }
+
   return (
     <div className="w-full rounded-xl overflow-hidden bg-black shadow-2xl shadow-purple-900/30">
       <iframe
-        key={streamUrl}
-        src={streamUrl}
+        key={stream.url}
+        src={stream.url}
         className="w-full aspect-video"
         allowFullScreen
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
         title="Stream Player"
         scrolling="no"
-        referrerPolicy="no-referrer"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation allow-pointer-lock"
         style={{ border: "none", display: "block" }}
       />
@@ -57,10 +92,7 @@ const QUALITY_COLORS: Record<string, string> = {
 };
 const SERVER_ICONS = [Zap, Signal, Wifi, Play, Monitor];
 
-interface GroupedServers {
-  quality: string;
-  servers: EpisodeServer[];
-}
+interface GroupedServers { quality: string; servers: EpisodeServer[]; }
 
 function groupByQuality(servers: EpisodeServer[]): GroupedServers[] {
   const map: Record<string, EpisodeServer[]> = {};
@@ -71,6 +103,28 @@ function groupByQuality(servers: EpisodeServer[]): GroupedServers[] {
   }
   const ORDER = ["1080p", "720p", "480p", "360p", "Lainnya"];
   return ORDER.filter((q) => map[q]).map((q) => ({ quality: q, servers: map[q] }));
+}
+
+function findBestServer(groups: GroupedServers[], pref: ReturnType<typeof getServerPref>): EpisodeServer | null {
+  const flatAll = groups.flatMap((g) => g.servers);
+  const flatEmbed = flatAll.filter((s) => isEmbeddableServer(s.name));
+
+  const prefGroup = groups.find((g) => g.quality === pref.defaultQuality) || groups[0];
+  if (!prefGroup) return null;
+
+  const embedInPrefGroup = prefGroup.servers.filter((s) => isEmbeddableServer(s.name));
+  const byName = (list: EpisodeServer[]) =>
+    list.find((s) => s.name.toLowerCase().includes(pref.preferredServer.toLowerCase()));
+
+  return (
+    byName(embedInPrefGroup) ||
+    embedInPrefGroup[0] ||
+    byName(flatEmbed) ||
+    flatEmbed[0] ||
+    byName(prefGroup.servers) ||
+    prefGroup.servers[0] ||
+    null
+  );
 }
 
 export default function Watch() {
@@ -95,22 +149,12 @@ export default function Watch() {
     fetchEpisode(slug)
       .then((data) => {
         setEpisode(data);
+        if (!data.servers.length) return;
         const pref = getServerPref();
-
-        if (data.defaultStreamingUrl && pref.autoPlay) {
-          setActiveStream({ url: data.defaultStreamingUrl, key: "default" });
-          setActiveServerId("default");
-        } else if (data.servers.length > 0) {
-          const groups = groupByQuality(data.servers);
-          const prefGroup = groups.find((g) => g.quality === pref.defaultQuality) || groups[0];
-          if (prefGroup) {
-            const prefServer =
-              prefGroup.servers.find((s) =>
-                s.name.toLowerCase().includes(pref.preferredServer.toLowerCase())
-              ) || prefGroup.servers[0];
-            if (prefServer) autoLoadServer(prefServer);
-          }
-        }
+        if (!pref.autoPlay) return;
+        const groups = groupByQuality(data.servers);
+        const best = findBestServer(groups, pref);
+        if (best) autoLoadServer(best);
       })
       .catch(() => setServerError("Gagal memuat episode. Pastikan link episode valid."))
       .finally(() => setLoading(false));
@@ -121,7 +165,9 @@ export default function Watch() {
     setServerLoading(true);
     try {
       const { url } = await fetchServer(server.serverId);
-      if (url) setActiveStream({ url, key: server.serverId });
+      if (url) {
+        setActiveStream({ url, key: server.serverId, embeddable: isEmbeddableUrl(url) });
+      }
     } catch {
     } finally {
       setServerLoading(false);
@@ -137,7 +183,7 @@ export default function Watch() {
     try {
       const { url } = await fetchServer(server.serverId);
       if (url) {
-        setActiveStream({ url, key: server.serverId });
+        setActiveStream({ url, key: server.serverId, embeddable: isEmbeddableUrl(url) });
       } else {
         setServerError("URL stream tidak tersedia dari server ini. Coba server lain.");
       }
@@ -145,14 +191,6 @@ export default function Watch() {
       setServerError("Gagal memuat server. Coba server lain.");
     } finally {
       setServerLoading(false);
-    }
-  };
-
-  const handleDefaultStream = () => {
-    if (episode?.defaultStreamingUrl) {
-      setActiveStream({ url: episode.defaultStreamingUrl, key: "default" });
-      setActiveServerId("default");
-      setServerError(null);
     }
   };
 
@@ -210,7 +248,7 @@ export default function Watch() {
               </div>
             </div>
           ) : (
-            <VideoPlayer streamUrl={activeStream?.url || ""} />
+            <VideoPlayer stream={activeStream} />
           )}
         </div>
 
@@ -256,6 +294,7 @@ export default function Watch() {
               <div className="flex items-center gap-2 mb-4">
                 <Monitor className="w-4 h-4 text-purple-400" />
                 <h2 className="text-sm font-semibold text-white">Pilih Server</h2>
+                <span className="text-xs text-gray-600 ml-1">· Server bertanda embed akan tampil langsung</span>
                 {serverError && (
                   <span className="text-xs text-red-400 flex items-center gap-1 ml-auto">
                     <AlertCircle className="w-3 h-3" />
@@ -263,24 +302,6 @@ export default function Watch() {
                   </span>
                 )}
               </div>
-
-              {episode.defaultStreamingUrl && (
-                <div className="mb-4">
-                  <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Server Default</p>
-                  <button
-                    onClick={handleDefaultStream}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                      activeServerId === "default"
-                        ? "bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30"
-                        : "bg-[hsl(222,47%,12%)] text-gray-300 border-purple-900/20 hover:border-purple-600/40 hover:text-white"
-                    }`}
-                  >
-                    <Play className="w-4 h-4" />
-                    Streaming Default
-                    <span className="text-xs opacity-70">· Ondesu</span>
-                  </button>
-                </div>
-              )}
 
               {grouped.length > 0 && (
                 <div className="space-y-4">
@@ -296,11 +317,13 @@ export default function Watch() {
                         {group.servers.map((server, i) => {
                           const Icon = SERVER_ICONS[i % SERVER_ICONS.length];
                           const isActive = activeServerId === server.serverId;
+                          const canEmbed = isEmbeddableServer(server.name);
                           return (
                             <button
                               key={server.serverId}
                               onClick={() => handleServerClick(server)}
                               disabled={serverLoading}
+                              title={canEmbed ? "Dapat diputar langsung" : "Akan membuka di tab baru"}
                               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
                                 isActive
                                   ? "bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30"
@@ -309,6 +332,11 @@ export default function Watch() {
                             >
                               <Icon className="w-3.5 h-3.5" />
                               {server.name}
+                              {canEmbed ? (
+                                <span className="text-[10px] text-green-400 opacity-80">embed</span>
+                              ) : (
+                                <ExternalLink className="w-3 h-3 opacity-50" />
+                              )}
                               {serverLoading && isActive && (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               )}
@@ -321,7 +349,7 @@ export default function Watch() {
                 </div>
               )}
 
-              {grouped.length === 0 && !episode.defaultStreamingUrl && (
+              {grouped.length === 0 && (
                 <p className="text-sm text-gray-500">Tidak ada server tersedia untuk episode ini.</p>
               )}
             </div>
