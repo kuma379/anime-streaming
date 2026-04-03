@@ -3,6 +3,12 @@
   "installCommand": "cp package.vercel.json package.json && npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/((?!api/).*)",
