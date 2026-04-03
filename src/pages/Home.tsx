@@ -37,8 +37,9 @@ const HERO_ANIME = {
 
 export default function Home() {
   const [recentAnime, setRecentAnime] = useState<AnimeItem[]>(FALLBACK_RECENT);
-  const [popularAnime, setPopularAnime] = useState<AnimeItem[]>(FALLBACK_POPULAR);
+  const [popularAnime] = useState<AnimeItem[]>(FALLBACK_POPULAR);
   const [loading, setLoading] = useState(true);
+  const [isLiveData, setIsLiveData] = useState(false);
 
   useEffect(() => {
     fetchHome()
@@ -47,11 +48,10 @@ export default function Home() {
           const mapped = data.map((a) => ({
             ...a,
             slug: a.slug || "",
-            episode: a.episode || (a as unknown as { episodes: number }).episodes
-              ? `Ep ${(a as unknown as { episodes: number }).episodes}`
-              : "",
+            episode: a.episode || "",
           }));
           setRecentAnime(mapped.slice(0, 8));
+          setIsLiveData(true);
         }
       })
       .catch(() => {})
@@ -112,14 +112,14 @@ export default function Home() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-purple-400" />
-              <h2 className="text-xl font-bold text-white">Episode Terbaru</h2>
+              <h2 className="text-xl font-bold text-white">Anime Terbaru</h2>
             </div>
             <Link href="/jadwal" className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors">
               Lihat Semua <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="animate-pulse">
                   <div className="aspect-[3/4] bg-[hsl(222,47%,12%)] rounded-lg mb-2" />
@@ -128,9 +128,9 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {recentAnime.slice(0, 8).map((anime, i) => (
-                <AnimeCard key={i} anime={anime} />
+                <AnimeCard key={i} anime={anime} linkToAnime={isLiveData} />
               ))}
             </div>
           )}
