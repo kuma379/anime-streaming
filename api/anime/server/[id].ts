@@ -12,6 +12,7 @@ const api = axios.create({
   },
   timeout: 20000,
   decompress: true,
+  validateStatus: () => true,
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,7 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!id) return res.status(400).json({ error: "Missing server id" });
 
   try {
-    const { data } = await api.get(`/anime/server/${id}`);
+    const { data, status } = await api.get(`/anime/server/${id}`);
+    if (status !== 200) return res.status(404).json({ url: "" });
     const url = data?.data?.url || data?.url || "";
     return res.status(200).json({ url });
   } catch (err) {

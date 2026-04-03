@@ -12,6 +12,7 @@ const api = axios.create({
   },
   timeout: 20000,
   decompress: true,
+  validateStatus: () => true,
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,8 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!slug) return res.status(400).json({ error: "Missing slug" });
 
   try {
-    const { data } = await api.get(`/anime/episode/${slug}`);
-    const d = data?.data || data;
+    const { data, status } = await api.get(`/anime/episode/${slug}`);
+    if (status !== 200 || !data?.data) return res.status(404).json({ error: "Episode tidak ditemukan" });
+    const d = data.data;
 
     const qualities: Record<string, unknown>[] = d?.server?.qualities || [];
     const servers: { name: string; serverId: string; quality: string }[] = [];
@@ -32,24 +34,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const qTitle = q.title as string;
       const serverList = (q.serverList as Record<string, unknown>[]) || [];
       for (const s of serverList) {
-        servers.push({
-          name: `${String(s.title).trim()} (${qTitle})`,
-          serverId: s.serverId as string,
-          quality: qTitle,
-        });
+        servers.push({ name: String(s.title).trim(), serverId: s.serverId as string, quality: qTitle });
       }
     }
+
+    const mapNav = (nav: Record<string, unknown> | null | undefined) =>
+      nav ? { title: nav.title || "", episodeId: nav.episodeId || "", href: nav.href || "" } : null;
 
     return res.status(200).json({
       title: d?.title || slug.replace(/-/g, " "),
       animeId: d?.animeId || "",
       defaultStreamingUrl: d?.defaultStreamingUrl || "",
       releaseTime: d?.releaseTime || "",
-      prevEpisode: d?.prevEpisode || null,
-      nextEpisode: d?.nextEpisode || null,
+      prevEpisode: mapNav(d?.prevEpisode as Record<string, unknown>),
+      nextEpisode: mapNav(d?.nextEpisode as Record<string, unknown>),
       servers,
-      synopsis: "",
-      poster: "",
+      synopsis: d?.info?.synopsis || "",
+      poster: d?.info?.poster || "",
       anime: d?.animeId || "",
     });
   } catch (err) {
